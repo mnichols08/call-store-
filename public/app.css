@@ -1,0 +1,101 @@
+/* The call desk: dense, desktop-first, readable at a glance while on the phone. Colours come from
+   Zubra UI's theme variables; this file only lays things out and sets the brand blue. */
+:root { --primary: oklch(0.45 0.13 255); --primary-foreground: oklch(0.99 0 0); --ring: oklch(0.6 0.13 255); --bar: oklch(0.2 0.03 255); }
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--muted); color: var(--foreground); }
+a { color: var(--primary); }
+small { display: block; color: var(--muted-foreground); font-size: 0.8rem; }
+.muted { color: var(--muted-foreground); }
+.sr, .skip:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip:focus { position: fixed; top: 0.5rem; left: 0.5rem; z-index: 10; background: var(--background); padding: 0.5rem 1rem; }
+
+.bar { display: flex; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-height: 3.25rem; background: var(--bar); color: #fff; flex-wrap: wrap; }
+.bar a { color: inherit; text-decoration: none; }
+.brand { font-weight: 700; display: flex; flex-direction: column; line-height: 1.1; }
+.brand small { color: oklch(0.8 0.03 255); font-weight: 400; }
+.bar nav { display: flex; gap: 0.25rem; flex: 1; flex-wrap: wrap; }
+.bar nav a { padding: 0.45rem 0.8rem; border-radius: 0.4rem; }
+.bar nav a:hover { background: oklch(1 0 0 / 0.1); }
+.bar nav a[aria-current] { background: oklch(1 0 0 / 0.18); font-weight: 600; }
+.account { display: flex; align-items: center; gap: 0.9rem; }
+.account .who { display: grid; text-align: right; line-height: 1.15; }
+.account .who small { color: oklch(0.8 0.03 255); }
+.account form { margin: 0; }
+.new-call { background: #fff; color: var(--bar); border: 0; font-weight: 700; padding: 0.5rem 0.9rem; border-radius: 0.4rem; cursor: pointer; }
+button.link { background: none; border: 0; color: inherit; text-decoration: underline; cursor: pointer; padding: 0; font: inherit; }
+main .link { color: var(--primary); }
+
+main { max-width: 88rem; margin: 0 auto; padding: 1.25rem; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 1.5rem; }
+h2 { margin: 0 0 0.6rem; font-size: 1rem; }
+.head p { margin: 0.15rem 0 0; }
+.row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.row form { margin: 0; }
+.badges { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.flash { margin: 0 0 1rem; padding: 0.7rem 1rem; border-radius: 0.5rem; border: 1px solid; }
+.flash.problem { background: color-mix(in oklab, var(--destructive) 10%, white); border-color: color-mix(in oklab, var(--destructive) 40%, white); }
+.flash.done { background: color-mix(in oklab, oklch(0.6 0.15 150) 12%, white); border-color: color-mix(in oklab, oklch(0.6 0.15 150) 40%, white); }
+
+.panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.1rem; margin-bottom: 1rem; }
+.panel.stack, .stack { display: grid; gap: 0.8rem; }
+.panel summary { cursor: pointer; font-weight: 600; }
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 24rem; gap: 1rem; align-items: start; }
+@media (max-width: 70rem) { .workspace { grid-template-columns: 1fr; } }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+.four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.8rem; }
+@media (max-width: 50rem) { .four { grid-template-columns: 1fr 1fr; } }
+.phone-row { display: grid; grid-template-columns: 2fr 1fr 5rem; gap: 0.6rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.8rem; margin-bottom: 1rem; }
+.stats > * { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.4rem 0.8rem; }
+
+.tabs { display: flex; gap: 0.25rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+.tabs a { padding: 0.4rem 0.8rem; border-radius: 999px; text-decoration: none; color: var(--foreground); background: var(--card); border: 1px solid var(--border); }
+.tabs a[aria-current] { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+.count { font-size: 0.75rem; opacity: 0.8; }
+
+table.grid { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.grid th, .grid td { text-align: left; padding: 0.55rem 0.8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.grid th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); background: var(--muted); }
+.grid tbody tr:hover { background: color-mix(in oklab, var(--primary) 5%, white); }
+.grid .num { white-space: nowrap; }
+.grid.compact td { padding: 0.35rem 0.6rem; font-size: 0.9rem; }
+.title { font-weight: 600; text-decoration: none; }
+
+ul.plain, ol.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+ul.plain li { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+ul.plain li form { margin: 0; }
+ol.timeline li { border-left: 2px solid var(--border); padding-left: 0.7rem; }
+.customer-card { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+.anon { margin: 0 0 0.6rem; }
+.lookup label { display: block; font-weight: 600; margin-bottom: 0.3rem; }
+.lookup .row input { flex: 1; }
+.results { margin-top: 0.6rem; }
+.savebar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; position: sticky; bottom: 0; background: var(--muted); padding: 0.6rem 0; }
+#save-state.bad { color: var(--destructive); font-weight: 600; }
+.js-only { display: none; }
+.js .js-only { display: inline-flex; }
+.actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+
+input[type=search], input:not([type]), input[type=text], select { font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--input); border-radius: calc(var(--radius) - 2px); background: var(--background); color: inherit; }
+input.qty { width: 4rem; }
+.search { display: flex; gap: 0.5rem; align-items: center; margin: 0; }
+.check { display: flex; align-items: center; gap: 0.3rem; font-size: 0.9rem; }
+.btn, button:not(.link):not(.new-call) { font: inherit; padding: 0.45rem 0.9rem; border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px); background: var(--background); color: var(--foreground); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+.btn.primary { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); font-weight: 600; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.bars li { display: grid; grid-template-columns: 3.5rem 1fr 2rem; gap: 0.6rem; align-items: center; }
+.bars .bar { display: block; height: 0.9rem; width: var(--w); min-width: 2px; background: var(--primary); border-radius: 3px; padding: 0; min-height: 0; }
+.bars .n { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* The kit's staff pages (sign-in, people, password) use these class names. */
+main > section:first-child h1 + .lede { color: var(--muted-foreground); margin: 0.25rem 0 1rem; }
+form.panel label { display: grid; gap: 0.3rem; font-weight: 600; margin-bottom: 0.8rem; }
+form.panel input { font-weight: 400; }
+form.panel button[type=submit] { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); font-weight: 600; }
+.notice, .bulletin { padding: 0.7rem 1rem; border-radius: 0.5rem; background: color-mix(in oklab, var(--destructive) 10%, white); }
+.ok { padding: 0.7rem 1rem; border-radius: 0.5rem; background: color-mix(in oklab, oklch(0.6 0.15 150) 12%, white); }
+.hint { color: var(--muted-foreground); }
+@media print { .bar, .savebar { display: none; } }
