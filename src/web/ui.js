@@ -70,9 +70,10 @@ export function layout({ title, who, active = '', body, notice = {}, business, l
 ${notice.problem ? `<p class="flash problem" role="alert">${esc(notice.problem)}</p>` : ''}${notice.done ? `<p class="flash done" role="status">${esc(notice.done)}</p>` : ''}
 ${body}
 </main>
+<div id="toasts" aria-live="polite"></div>
 <span id="net-pill" role="status" hidden><span class="dot"></span>Offline. Changes save when you’re back.</span>
 <script src="/assets/background.js" defer></script><script src="/assets/network.js" defer></script>
-${who ? '<script src="/assets/shortcuts.js" defer></script>' : ''}${live ? '<script src="/assets/live.js" defer></script>' : ''}${script}
+${who ? '<script src="/assets/shortcuts.js" defer></script><script src="/assets/nudge.js" defer></script>' : ''}<script src="/assets/print.js" defer></script>${live ? '<script src="/assets/live.js" defer></script>' : ''}${script}
 </body>
 </html>`;
 }
@@ -99,6 +100,34 @@ export const WORDS = {
   customer: 'That customer couldn’t be found.',
   item: 'That item couldn’t be found.',
   unassigned: 'Nobody has that call.',
+  'nudge-who': 'Pick a coworker to nudge.',
+  'slow-down': 'That’s a lot of nudges in a minute. Give it a moment.',
+  subscription: 'That browser can’t be set up for notifications.',
   status: 'Pick active or inactive.',
 };
 export const say = (code) => WORDS[code] ?? 'That didn’t work.';
+
+/**
+ * A sheet for the printer: plain, white, no navigation. The toolbar above it (Back, Print) doesn't
+ * print. `print.js` wires the Print button, and prints at once when the address has ?auto.
+ */
+export function printLayout({ title, body, business, back }) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(title)} · ${esc(business)}</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/assets/print.css">
+</head>
+<body>
+<div class="toolbar noprint"><a href="${esc(back)}">Back</a><button type="button" data-print>Print</button></div>
+<main class="sheet">
+<header class="sheet-head"><strong>${esc(business)}</strong><span>${esc(title)}</span></header>
+${body}
+</main>
+<script src="/assets/print.js" defer></script>
+</body>
+</html>`;
+}

@@ -12,6 +12,10 @@ Built for Southern Auto Supply on [Zubra](https://github.com/journey-to-code-org
 - **Outcomes and history.** A call ends with what came of it (quoted, sold, no sale, unavailable, callback…). Every change is on the call's timeline, attributed to the person who made it.
 - **Customers.** People and businesses, any number of phones, contacts, and a history of their calls.
 - **Items.** A catalog anyone can add to mid-call; managers correct and retire.
+- **Nudges.** Ask a coworker to look at a call, with an optional note. It appears as a toast if they have a page open, waits on their Today page until they say "Got it", and reaches their phone or desktop by Web Push if they've turned notifications on. Asking for help from someone, or assigning them a call, nudges them automatically.
+- **Print.** Every call prints as a plain one-page ticket (`/calls/:id/print`); reports and the queue print cleanly too. Save as PDF from the print dialog.
+- **How fast.** Reports show how long callers wait to be picked up, how often that beats your target, how long calls take to finish, who finished what, and the longest wait right now. Timing CSV for a spreadsheet.
+- **Watching it run.** `/healthz`, one JSON log line per request (with durations), and a token-protected `/metrics` in Prometheus format for Grafana.
 - **Staff.** Sign-in, invitations, password changes and roles (owner, manager, staff) from the kit. Reports and an activity log for managers.
 - **Works without JavaScript.** Every page is server-rendered; autosave, live lookup and live queue updates are added on top.
 

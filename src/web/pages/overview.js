@@ -1,6 +1,6 @@
 // Today (the dashboard), reports and the activity log.
-import { esc, when } from '../html.js';
-import { badge, callBadges, empty, stat } from '../ui.js';
+import { ago, duration, esc, when } from '../html.js';
+import { badge, button, callBadges, empty, stat } from '../ui.js';
 import { OUTCOMES } from '../../domain/call.js';
 import { can } from '../../domain/permissions.js';
 import { csv, series } from '../../../vendor/kit/reports/index.js';
@@ -16,8 +16,13 @@ export function overviewRoutes(router) {
     const askedOfMe = allHelp.filter((c) => c.help === 'specific' && c.help_from === who.email);
     const help = allHelp.filter((c) => !askedOfMe.includes(c)).slice(0, 8);
     const list = (calls) => `<ul class="plain">${calls.map((c) => `<li><span><a href="/calls/${c.id}">#${c.id} ${esc(c.title)}</a>${c.application ? `<small>${esc(c.application)}</small>` : ''}</span><span>${callBadges(page, c, people)}</span></li>`).join('')}</ul>`;
+    const nudges = app.nudges.inbox(who).nudges;
+    const nudgePanel = nudges.length ? `<section class="panel asked" aria-label="Nudges"><h2>${nudges.length === 1 ? 'A coworker nudged you' : 'Coworkers nudged you'}</h2><ul class="plain">${nudges.map((n) => `<li><span><strong>${esc(people.name(n.from_email))}</strong> ${esc(n.message || (n.call_id ? 'wants you to look at this call.' : 'wants a word.'))}${n.call_id ? ` <a href="/calls/${n.call_id}">Call #${n.call_id}</a>` : ''}<small>${esc(ago(n.created_at, ctx.now()))}</small></span>
+      <form method="post" action="/nudges/${n.id}/dismiss">${button(page, 'Got it', { variant: 'outline', size: 'sm' })}</form></li>`).join('')}</ul></section>` : '';
     return ctx.send('Today', `
 <div class="head"><h1>Today</h1></div>
+${nudgePanel}
+<section class="panel" id="push-panel" hidden><h2>Notifications on this device</h2><p class="muted" id="push-state">Get a nudge even when this tab is closed.</p><button type="button" id="push-toggle" class="btn">Turn on</button></section>
 ${askedOfMe.length ? `<section class="panel asked" aria-label="Asked of you"><h2>${askedOfMe.length === 1 ? 'A coworker is asking you for help' : 'Coworkers are asking you for help'}</h2>${list(askedOfMe)}</section>` : ''}
 <div class="stats">
 ${stat(page, { label: 'Open calls', value: String(n.active) })}${stat(page, { label: 'Nobody has yet', value: String(n.unassigned) })}
@@ -33,12 +38,22 @@ ${stat(page, { label: 'Mine', value: String(n.mine) })}${stat(page, { label: 'As
     const rows = days(app, ctx.who, range, config);
     const outcomes = tally(app, ctx.who, range);
     const max = Math.max(1, ...rows.map((r) => r.count));
+    const t = app.stats.timing(ctx.who, range, { targetMs: config.pickupTargetMinutes * 60_000 });
+    const pct = t.withinTarget == null ? '—' : `${Math.round(t.withinTarget * 100)}%`;
+    const timing = `<h2 class="section">How fast</h2>
+<div class="stats">
+${stat(page, { label: 'Median wait to pick up', value: duration(t.waitMedian) })}${stat(page, { label: '90% picked up within', value: duration(t.waitP90) })}
+${stat(page, { label: `Picked up in ${config.pickupTargetMinutes} min`, value: pct })}${stat(page, { label: 'Median time to finish', value: duration(t.handleMedian) })}
+${stat(page, { label: 'Longest waiting now', value: t.longestWaitingNow ? duration(t.longestWaitingNow.ms) : 'None' })}</div>
+${t.people.length ? `<section class="panel"><h2>By person</h2><table class="grid compact"><thead><tr><th>Who</th><th>Finished</th><th>Median time to finish</th></tr></thead><tbody>${t.people.map((p) => `<tr><td>${esc(ctx.people.name(p.email))}</td><td>${p.finished}</td><td>${duration(p.handleMedian)}</td></tr>`).join('')}</tbody></table></section>` : ''}
+${t.neverPickedUp ? `<p class="panel muted">${t.neverPickedUp} call${t.neverPickedUp === 1 ? ' was' : 's were'} never picked up by anyone in this range.</p>` : ''}`;
     return ctx.send('Reports', `
-<div class="head"><h1>Reports</h1><a class="btn" href="/reports.csv?days=${range.days}">Download CSV</a></div>
+<div class="head"><h1>Reports</h1><div class="row"><button type="button" class="btn" data-print>Print</button><a class="btn" href="/reports.csv?days=${range.days}">Calls per day (CSV)</a><a class="btn" href="/reports/timing.csv?days=${range.days}">Timing (CSV)</a></div></div>
 <nav class="tabs" aria-label="Range">${[7, 14, 30, 90].map((d) => `<a href="/reports?days=${d}"${d === range.days ? ' aria-current="true"' : ''}>Last ${d} days</a>`).join('')}</nav>
 <div class="workspace"><div class="main-col"><section class="panel"><h2>Calls taken per day</h2>
 ${rows.length ? `<ol class="bars" aria-label="Calls per day">${rows.map((r) => `<li><span class="day">${esc(r.start.slice(5))}</span><span class="bar" style="--w:${Math.round((r.count / max) * 100)}%"></span><span class="n">${r.count}</span></li>`).join('')}</ol>` : empty(page, 'No calls in this range')}</section></div>
-<aside class="side-col"><section class="panel"><h2>What came of them</h2>${outcomes.length ? `<ul class="plain">${outcomes.map(([label, count]) => `<li><span>${esc(label)}</span><span>${count}</span></li>`).join('')}</ul>` : '<p class="muted">Nothing finished in this range.</p>'}</section></aside></div>`, { active: 'reports' });
+<aside class="side-col"><section class="panel"><h2>What came of them</h2>${outcomes.length ? `<ul class="plain">${outcomes.map(([label, count]) => `<li><span>${esc(label)}</span><span>${count}</span></li>`).join('')}</ul>` : '<p class="muted">Nothing finished in this range.</p>'}</section></aside></div>
+${timing}`, { active: 'reports' });
   });
 
   router.get('/reports.csv', (ctx) => {
@@ -47,6 +62,17 @@ ${rows.length ? `<ol class="bars" aria-label="Calls per day">${rows.map((r) => `
     const rows = days(ctx.app, ctx.who, range, ctx.config);
     ctx.res.writeHead(200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="calls-per-day.csv"' });
     ctx.res.end(csv(rows, [{ key: 'start', label: 'Day' }, { key: 'count', label: 'Calls' }]));
+  });
+
+  router.get('/reports/timing.csv', (ctx) => {
+    if (!can(ctx.who, 'report.view')) return ctx.forbidden();
+    const range = rangeOf(ctx, ctx.config);
+    const t = ctx.app.stats.timing(ctx.who, range);
+    const iso = (ms) => (ms == null ? '' : new Date(ms).toISOString());
+    const seconds = (ms) => (ms == null ? '' : Math.round(ms / 1000));
+    const rows = t.calls.map((c) => ({ call: c.id, started: iso(c.created_at), picked_up: iso(c.picked_up_at), finished: iso(c.closed_at), wait_seconds: seconds(c.wait_ms), handle_seconds: seconds(c.handle_ms), outcome: OUTCOMES[c.outcome] ?? '', taken_by: c.assignee ?? c.picked_up_by ?? '' }));
+    ctx.res.writeHead(200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="call-timing.csv"' });
+    ctx.res.end(csv(rows, [{ key: 'call', label: 'Call' }, { key: 'started', label: 'Started' }, { key: 'picked_up', label: 'Picked up' }, { key: 'finished', label: 'Finished' }, { key: 'wait_seconds', label: 'Wait (s)' }, { key: 'handle_seconds', label: 'Handled (s)' }, { key: 'outcome', label: 'Outcome' }, { key: 'taken_by', label: 'Taken by' }]));
   });
 
   router.get('/audit', (ctx) => {

@@ -14,6 +14,16 @@ export const config = Object.freeze({
   secret: process.env.SESSION_SECRET ?? (production ? '' : 'development-only-secret-do-not-use'),
   // How many proxies in front add to X-Forwarded-For (1 on Railway).
   proxies: Number(process.env.TRUSTED_PROXIES ?? (production ? 1 : 0)),
+  // Public address of the app; used for the setup link and as the Web Push contact.
+  publicUrl: process.env.PUBLIC_URL ?? '',
+  // Web Push identity. Leave unset and one is generated and kept in the database.
+  vapid: Object.freeze({ publicKey: process.env.VAPID_PUBLIC_KEY ?? '', privateKey: process.env.VAPID_PRIVATE_KEY ?? '', subject: process.env.VAPID_SUBJECT ?? '' }),
+  // Callers should be picked up within this many minutes; reports show how often that happened.
+  pickupTargetMinutes: Number(process.env.PICKUP_TARGET_MINUTES ?? 5),
+  // One JSON line per request (on by default in production).
+  logRequests: (process.env.LOG_REQUESTS ?? (production ? 'true' : 'false')) === 'true',
+  // Set to expose /metrics (Prometheus format) to a scraper sending this bearer token.
+  metricsToken: process.env.METRICS_TOKEN ?? '',
 });
 
 export function checkConfig(c = config) {

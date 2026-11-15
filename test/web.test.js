@@ -2,11 +2,14 @@ import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { migrate, openDatabase } from '../src/infra/db.js';
 import { createWeb } from '../src/web/server.js';
+import { createLogger } from '../src/infra/log.js';
 
 const config = { production: false, port: 0, business: 'Test Parts', zone: 'America/New_York', secret: 'x'.repeat(40), proxies: 0 };
 let web;
 let base;
 let db;
+const pushes = [];
+let pushFailure = null;
 
 /** A tiny browser: keeps its cookies, doesn't follow redirects, always says where posts come from. */
 function browser() {
@@ -47,7 +50,7 @@ async function signedIn(roles = ['owner'], email = 'olive@example.com', name = '
 before(async () => {
   db = openDatabase(':memory:');
   migrate(db);
-  web = await createWeb({ db, config });
+  web = await createWeb({ db, config, sendPush: async (subscription, body) => { pushes.push({ subscription, body: JSON.parse(body) }); if (pushFailure) throw pushFailure; } });
   await new Promise((resolve) => web.server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${web.server.address().port}`;
 });
@@ -162,4 +165,132 @@ test('a coworker asking you for help is the first thing you see on Today', async
   assert.match(today, /asking you for help/);
   assert.match(today, /Hydraulic fitting/);
   assert.doesNotMatch((await ann('/')).text, /asking you for help/);
+});
+
+
+test('a nudge reaches only the person it is for: on Today, until they dismiss it, and by push if they allowed it', async () => {
+  const olive = await signedIn();
+  const ann = await signedIn(['staff'], 'ann@example.com', 'Ann');
+  const bob = await signedIn(['staff'], 'bob@example.com', 'Bob');
+  const path = (await olive('/calls', { method: 'POST', form: {} })).location;
+  await olive(`${path}/save`, { method: 'POST', json: true, form: { request: 'Alternator for the <b>tractor</b>' } });
+
+  // Ann opens the live stream and Bob does too; only Ann is nudged.
+  const listen = async (who) => {
+    const abort = new AbortController();
+    const response = await fetch(`${base}/events`, { headers: { cookie: who.cookie }, signal: abort.signal });
+    let text = '';
+    const reading = (async () => { try { for await (const chunk of response.body) text += Buffer.from(chunk).toString(); } catch {} })();
+    return { text: () => text, stop: async () => { abort.abort(); await reading; } };
+  };
+  const annStream = await listen(ann);
+  const bobStream = await listen(bob);
+
+  assert.match((await olive(`${path}/nudge`, { method: 'POST', form: { to: 'nobody@example.com', message: 'hi' } })).location, /problem=/);
+  assert.match((await olive(`${path}/nudge`, { method: 'POST', form: { to: 'olive@example.com' } })).location, /problem=/, 'not yourself');
+
+  // Ann allows notifications on one browser, then Olive nudges her.
+  const sub = { endpoint: 'https://push.example/ann-1', keys: { p256dh: 'p', auth: 'a' } };
+  assert.equal((await ann('/push/subscribe', { method: 'POST', json: true, form: { subscription: JSON.stringify(sub) } })).status, 200);
+  assert.equal((await ann('/push/subscribe', { method: 'POST', json: true, form: { subscription: JSON.stringify({ endpoint: 'http://insecure', keys: {} }) } })).status, 400);
+  const sent = await olive(`${path}/nudge`, { method: 'POST', form: { to: 'ann@example.com', message: 'Can you take this one? <i>please</i>' } });
+  assert.match(sent.location, /done=Nudged/);
+  await new Promise((r) => setTimeout(r, 150));
+
+  assert.equal(pushes.length, 1);
+  assert.equal(pushes[0].subscription.endpoint, sub.endpoint);
+  assert.equal(pushes[0].body.title, 'Olive nudged you');
+  assert.equal(pushes[0].body.url, path);
+  assert.match(annStream.text(), /"type":"nudge"/);
+  assert.doesNotMatch(bobStream.text(), /nudge/, 'a nudge is private');
+  await annStream.stop();
+  await bobStream.stop();
+
+  const today = (await ann('/')).text;
+  assert.match(today, /A coworker nudged you/);
+  assert.match(today, /Can you take this one\? &lt;i&gt;please&lt;\/i&gt;/, 'escaped');
+  assert.doesNotMatch((await bob('/')).text, /nudged you/);
+  assert.doesNotMatch((await olive('/')).text, /nudged you/);
+
+  // Only the recipient can dismiss it.
+  const id = /\/nudges\/(\d+)\/dismiss/.exec(today)[1];
+  await bob(`/nudges/${id}/dismiss`, { method: 'POST', form: {} });
+  assert.match((await ann('/')).text, /nudged you/);
+  await ann(`/nudges/${id}/dismiss`, { method: 'POST', form: {} });
+  assert.doesNotMatch((await ann('/')).text, /nudged you/);
+
+  // Asking for help from a person, or assigning to them, nudges them too.
+  await olive(`${path}/action`, { method: 'POST', form: { action: 'help', from: 'bob@example.com' } });
+  assert.match((await bob('/')).text, /Olive<\/strong> Asked for your help/);
+
+  // A browser that has forgotten the subscription is dropped, not retried forever.
+  pushFailure = Object.assign(new Error('gone'), { statusCode: 410 });
+  await olive(`${path}/nudge`, { method: 'POST', form: { to: 'ann@example.com' } });
+  await new Promise((r) => setTimeout(r, 150));
+  pushFailure = null;
+  assert.equal(db.prepare('SELECT count(*) AS n FROM push_subscriptions').get().n, 0);
+});
+
+test('a call prints as a plain sheet, and only to someone signed in', async () => {
+  const olive = await signedIn();
+  const path = (await olive('/calls', { method: 'POST', form: {} })).location;
+  await olive(`${path}/save`, { method: 'POST', json: true, form: { request: 'Hydraulic hose <script>alert(1)</script>', notes: 'Ask for Dale', app_make: 'Case' } });
+  const sheet = await olive(`${path}/print`);
+  assert.equal(sheet.status, 200);
+  assert.match(sheet.text, new RegExp(`Call #${path.split('/').pop()}`));
+  assert.match(sheet.text, /Hydraulic hose &lt;script&gt;/);
+  assert.match(sheet.text, /Ask for Dale/);
+  assert.match(sheet.text, /Printed .* by Olive/);
+  assert.doesNotMatch(sheet.text, /<nav/);
+  assert.doesNotMatch(sheet.text, /<script>alert/);
+  assert.equal((await browser()(`${path}/print`)).location, '/staff/sign-in');
+  assert.equal((await olive('/calls/999999/print')).status, 404);
+});
+
+test('reports show how fast calls are picked up, to managers and owners only', async () => {
+  const olive = await signedIn();
+  const ann = await signedIn(['staff'], 'ann@example.com', 'Ann');
+  const path = (await olive('/calls', { method: 'POST', form: {} })).location;
+  await olive(`${path}/action`, { method: 'POST', form: { action: 'claim' } });
+  await olive(`${path}/action`, { method: 'POST', form: { action: 'close', outcome: 'sold' } });
+  const page = (await olive('/reports')).text;
+  assert.match(page, /How fast/);
+  assert.match(page, /Median wait to pick up/);
+  assert.match(page, /By person/);
+  const csv = await olive('/reports/timing.csv?days=7');
+  assert.equal(csv.status, 200);
+  assert.match(csv.text, /^Call,Started,Picked up,Finished,Wait \(s\),Handled \(s\),Outcome,Taken by/);
+  assert.equal((await ann('/reports')).status, 403);
+  assert.equal((await ann('/reports/timing.csv')).status, 403);
+});
+
+test('the service worker is public; metrics need the token; request logs carry routes, never ids or queries', async () => {
+  const lines = [];
+  const second = await createWeb({
+    db,
+    config: { ...config, metricsToken: 'scrape-token-1234', logRequests: true },
+    log: createLogger({ requests: true, out: (l) => lines.push(JSON.parse(l)), err: (l) => lines.push(JSON.parse(l)) }),
+  });
+  await new Promise((resolve) => second.server.listen(0, '127.0.0.1', resolve));
+  const origin = `http://127.0.0.1:${second.server.address().port}`;
+  try {
+    const worker = await fetch(`${origin}/sw.js`);
+    assert.equal(worker.status, 200);
+    assert.match(await worker.text(), /showNotification/);
+    assert.equal((await fetch(`${origin}/metrics`)).status, 404);
+    assert.equal((await fetch(`${origin}/metrics`, { headers: { authorization: 'Bearer wrong' } })).status, 404);
+    await fetch(`${origin}/healthz`);
+    await fetch(`${origin}/calls/12345?q=secret-term`, { redirect: 'manual' });
+    await fetch(`${origin}/some/random/${Date.now()}`, { redirect: 'manual' });
+    const metrics = await (await fetch(`${origin}/metrics`, { headers: { authorization: 'Bearer scrape-token-1234' } })).text();
+    assert.match(metrics, /callstore_http_request_duration_seconds_count\{method="GET",route="\/healthz",status="2xx"\} 1/);
+    assert.match(metrics, /callstore_open_calls \d+/);
+    assert.doesNotMatch(metrics, /12345|secret-term|random/);
+    const logged = lines.filter((l) => l.msg === 'request');
+    assert.ok(logged.some((l) => l.route === '/healthz' && l.status === 200 && typeof l.ms === 'number'));
+    assert.doesNotMatch(JSON.stringify(lines), /12345|secret-term/);
+  } finally {
+    second.server.closeAllConnections?.();
+    second.server.close();
+  }
 });

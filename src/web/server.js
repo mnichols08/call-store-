@@ -11,8 +11,12 @@ import { clientAddress, staffPages } from '../../vendor/kit/staff/pages.js';
 import { createNotices } from '../../vendor/kit/notice/index.js';
 import { createApp } from '../app/index.js';
 import { sqliteStore } from '../infra/documents-store.js';
+import { createLogger } from '../infra/log.js';
+import { createMetrics } from './metrics.js';
+import { createPush } from './push.js';
+import { nudgeRoutes } from './pages/nudges.js';
 import { createRouter } from './router.js';
-import { layout, say } from './ui.js';
+import { layout, printLayout, say } from './ui.js';
 import { createLimiter } from './limiter.js';
 import { callRoutes } from './pages/calls.js';
 import { customerRoutes } from './pages/customers.js';
@@ -25,22 +29,34 @@ const PUBLIC = join(here, '..', '..', 'public');
 const TYPES = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.webp': 'image/webp' };
 const MAX_BODY = 256 * 1024;
 
-export async function createWeb({ db, config, now = Date.now }) {
+export async function createWeb({ db, config, now = Date.now, log = createLogger({ requests: config.logRequests }), sendPush }) {
   const store = sqliteStore(db);
   const staff = createStaff({ store, roles: ROLES, name: 'call-store', secure: config.production });
   const notices = createNotices({ secret: config.secret });
   const zubra = createZubra({ components: join(here, 'components'), production: config.production });
   const clients = new Set();
 
-  // Tell every open page something changed; each decides whether it cares.
+  const metrics = createMetrics();
+  let push;
+
+  // Tell every open page something changed; each decides whether it cares. A nudge is private: it
+  // goes only to the person it is for, live if they have a page open and by push if they've allowed it.
   const app = createApp({
     db,
     now,
     changed(event) {
+      if (event.type === 'nudge') {
+        const text = event.message || (event.callId ? `Can you look at call #${event.callId}?` : 'Can you take a look?');
+        const line = `data: ${JSON.stringify({ type: 'nudge', id: event.id, callId: event.callId, from: people.name(event.from), message: event.message })}\n\n`;
+        for (const res of clients) if (res.cstoreEmail === event.to) res.write(line);
+        push?.notify(event.to, { title: `${people.name(event.from)} nudged you`, body: text, url: event.callId ? `/calls/${event.callId}` : '/', tag: `nudge-${event.id}` });
+        return;
+      }
       const line = `data: ${JSON.stringify(event)}\n\n`;
       for (const res of clients) res.write(line);
     },
   });
+  push = createPush({ store, app, config, log, send: sendPush });
 
   const people = {
     list: () => store.under('accounts').filter((a) => !a.disabled).map((a) => ({ email: a.email, name: a.name || a.email, roles: a.roles })),
@@ -56,6 +72,7 @@ export async function createWeb({ db, config, now = Date.now }) {
   customerRoutes(router);
   itemRoutes(router);
   overviewRoutes(router);
+  nudgeRoutes(router);
 
   const signInLimit = createLimiter({ max: 20, windowMs: 60_000, now });
 
@@ -127,6 +144,22 @@ export async function createWeb({ db, config, now = Date.now }) {
 
   async function handle(req, res) {
     const url = new URL(req.url, 'http://localhost');
+    const started = performance.now();
+    const requestId = randomBytes(6).toString('hex');
+    res.setHeader('x-request-id', requestId);
+    // Metric labels are route patterns, never raw paths, so strangers can't make up new series.
+    res.cstoreRoute = url.pathname.startsWith('/assets/') ? '/assets/*' : url.pathname.startsWith('/staff') ? '/staff/*' : ['/healthz', '/sw.js', '/metrics', '/events'].includes(url.pathname) ? url.pathname : 'other';
+    if (url.pathname !== '/events') {
+      res.on('finish', () => {
+        const ms = performance.now() - started;
+        metrics.observe(req.method, res.cstoreRoute, res.statusCode, ms / 1000);
+        if (log.requests && !url.pathname.startsWith('/assets/')) {
+          const fields = { id: requestId, method: req.method, route: res.cstoreRoute, status: res.statusCode, ms: Math.round(ms) };
+          if (ms > 1000) log.warn('slow request', fields);
+          else log.info('request', fields);
+        }
+      });
+    }
     const nonce = randomBytes(16).toString('base64');
     res.cspNonce = nonce;
     res.csp = `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`;
@@ -138,6 +171,18 @@ export async function createWeb({ db, config, now = Date.now }) {
     if (url.pathname === '/healthz') {
       db.prepare('SELECT 1').get();
       return html(res, 200, 'ok', { 'content-type': 'text/plain' });
+    }
+    if (url.pathname === '/metrics') {
+      const ok = config.metricsToken && req.headers.authorization === `Bearer ${config.metricsToken}`;
+      if (!ok) return html(res, 404, 'Not found', { 'content-type': 'text/plain' });
+      const n = db.prepare("SELECT (SELECT count(*) FROM calls WHERE status NOT IN ('resolved', 'closed')) AS open, (SELECT count(*) FROM calls WHERE assignee IS NULL AND status NOT IN ('resolved', 'closed')) AS waiting").get();
+      return html(res, 200, metrics.render({ open_calls: n.open, unassigned_calls: n.waiting, live_connections: clients.size }), { 'content-type': 'text/plain; version=0.0.4' });
+    }
+    if (url.pathname === '/sw.js') {
+      // The service worker has to live at the root to cover every page.
+      const data = await readFile(join(PUBLIC, 'sw.js'));
+      res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' });
+      return res.end(data);
     }
     if (url.pathname.startsWith('/assets/')) {
       if (await asset(url, res)) return;
@@ -181,20 +226,25 @@ export async function createWeb({ db, config, now = Date.now }) {
     if (url.pathname === '/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
       res.write('retry: 3000\n\n');
+      res.cstoreEmail = who.email;
       clients.add(res);
       req.on('close', () => clients.delete(res));
       return;
     }
 
     const found = router.match(req.method, url.pathname);
+    if (found) res.cstoreRoute = found.pattern;
     const page = zubra.page({ nonce });
     const notice = notices.read(url);
     const ctx = {
-      req, res, url, form, who, page, app, people, config, params: found?.params ?? {}, wantsJson, now,
+      req, res, url, form, who, page, app, people, config, push, params: found?.params ?? {}, wantsJson, now,
       send(title, body, { active = '', live = false, script = '' } = {}, status = 200) {
         html(res, status, page.finish(layout({ title, who, active, body, notice, business: config.business, live, script })), { 'content-security-policy': res.csp });
       },
       redirect: (path, { done, problem } = {}) => redirect(res, notices.sign(done || problem ? `${path}${path.includes('?') ? '&' : '?'}${done ? 'done' : 'problem'}=${encodeURIComponent(done || problem)}` : path)),
+      print(title, body, back) {
+        html(res, 200, page.finish(printLayout({ title, body, business: config.business, back })), { 'content-security-policy': res.csp });
+      },
       json: (value, status = 200) => json(res, value, status),
       notFound: () => ctx.send('Not found', '<div class="head"><h1>Not found</h1></div><p>That page isn’t here. <a href="/">Back to today</a>.</p>', {}, 404),
       forbidden: () => ctx.send('Not allowed', `<div class="head"><h1>Not allowed</h1></div><p>${say('forbidden')} <a href="/">Back to today</a>.</p>`, {}, 403),
@@ -204,14 +254,14 @@ export async function createWeb({ db, config, now = Date.now }) {
     try {
       await found.handler(ctx);
     } catch (error) {
-      console.error(error);
+      log.error('request failed', error, { id: requestId, route: res.cstoreRoute });
       if (!res.headersSent) ctx.send('Something went wrong', '<div class="head"><h1>Something went wrong</h1></div><p>It’s been logged. Try again, or tell whoever runs the system.</p>', {}, 500);
     }
   }
 
   const server = createServer((req, res) => {
     handle(req, res).catch((error) => {
-      console.error(error);
+      log.error('request failed', error);
       if (!res.headersSent) res.writeHead(500, { 'content-type': 'text/plain' });
       res.end('Something went wrong.');
     });

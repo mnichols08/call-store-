@@ -10,6 +10,10 @@ One process and one SQLite file. Any host that runs Node 22.13+ and keeps a disk
 | `SESSION_SECRET` | 32+ random characters (`openssl rand -hex 32`). The app refuses to start without it. |
 | `DATABASE_PATH` | A path **on a volume**, e.g. `/data/call-store.db`. Without a volume the database is lost at every deploy. |
 | `BUSINESS_NAME`, `TIME_ZONE` | Shown in the header; the zone draws report days. |
+| `PICKUP_TARGET_MINUTES` | How quickly callers should be picked up (default 5). Reports show how often that happened. |
+| `LOG_REQUESTS` | One JSON log line per request. On in production by default. |
+| `METRICS_TOKEN` | Set it to expose `/metrics` to a scraper sending `Authorization: Bearer <token>`. Unset, `/metrics` doesn't exist. |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Identity for Web Push. Leave unset and a key pair is made once and kept in the database; set them if you want them to survive a fresh database. Subject is `mailto:you@example.com` or your https address. |
 | `TRUSTED_PROXIES` | `1` behind Railway's proxy, so sign-in limits count real client addresses. |
 | `PUBLIC_URL` | The site's address, used to print the first owner's link. |
 
@@ -36,3 +40,7 @@ Deploys restart the process (a few seconds). New migrations apply on start, each
 
 - One instance only: sign-in lockouts, the rate limiter and live updates live in the process.
 - `node:sqlite` prints an experimental warning on Node 22. It is expected.
+
+## Notifications on phones
+
+Web Push works over https only. On an iPhone the app has to be added to the Home Screen first (Share, then Add to Home Screen); Android and desktop browsers can turn notifications on from the Today page directly. Everything still works without push: nudges wait on Today.
