@@ -10,9 +10,11 @@ import { createStaff } from '../../vendor/kit/staff/index.js';
 import { clientAddress, staffPages } from '../../vendor/kit/staff/pages.js';
 import { createNotices } from '../../vendor/kit/notice/index.js';
 import { watchRoutes } from './pages/watch.js';
+import { hoursRoutes } from './pages/hours.js';
 import { detailsRoutes } from './pages/details.js';
 import { createCustomerPages } from './customer.js';
 import { createPortalPages } from './portal.js';
+import { createSite } from './site.js';
 import { portalRoutes } from './pages/portal.js';
 import { LIMITS } from '../app/details.js';
 import { vehicleRoutes } from './pages/vehicles.js';
@@ -56,6 +58,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     ai: ai ?? { apiKey: config.ai?.apiKey, model: config.ai?.model, webSearch: config.ai?.webSearch, domains: config.ai?.domains },
     mail: { provider: config.mail?.provider, apiKey: config.mail?.apiKey, from: config.mail?.from },
     business: config.business,
+    zone: config.zone,
     limits: { hourly: config.ai?.hourly ?? 30, daily: config.ai?.daily ?? 200 },
     changed(event) {
       if (event.type === 'nudge') {
@@ -89,9 +92,11 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   vehicleRoutes(router);
   detailsRoutes(router);
   watchRoutes(router);
+  hoursRoutes(router);
   portalRoutes(router);
 
   const customer = createCustomerPages({ app, config, zubra, now });
+  const site = createSite({ config, app, now });
   const portal = createPortalPages({ app, config, zubra, now, repName: (email) => people.name(email) });
   const signInLimit = createLimiter({ max: 20, windowMs: 60_000, now });
 
@@ -280,6 +285,12 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     }
 
     const wantsJson = (req.headers.accept ?? '').includes('application/json');
+    // The shop's public face: anyone can read it; staff who are signed in get Today at the same address.
+    if (!posting && (req.method === 'GET' || req.method === 'HEAD')) {
+      if (url.pathname === '/robots.txt') return html(res, 200, site.robots(), { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' });
+      if (url.pathname === '/sitemap.xml' && site.hasUrl()) return html(res, 200, site.sitemap(), { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' });
+      if (url.pathname === '/' && !who && !wantsJson) return site.render(res, zubra.page({ nonce }));
+    }
     if (!who) {
       if (wantsJson) return json(res, { error: 'signed-out' }, 401);
       return redirect(res, '/staff/sign-in');

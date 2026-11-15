@@ -62,3 +62,4 @@ Inventory and ordering (the POS stays the source of truth), telephony integratio
 
 ## Customer portal
 Customers can send requests, measurements and photos online and follow updates. See [docs/portal.md](docs/portal.md).
+The shop's public page and opening hours: see [docs/site.md](docs/site.md).

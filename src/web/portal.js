@@ -8,6 +8,7 @@ import { createLimiter } from './limiter.js';
 import { UPDATE_KINDS } from '../domain/portal.js';
 import { LIMITS } from '../app/details.js';
 import { PORTAL } from '../app/portal.js';
+import { SHOP } from '../domain/shop.js';
 
 const COOKIE = 'cs_portal';
 const SAYS = {
@@ -71,12 +72,19 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
     const done = requests.filter((r) => !r.open);
     const row = (r) => `<li><a href="/portal/requests/${r.id}"><strong>${esc(r.request || r.partNumbers || 'Request')}</strong><span class="muted"> · ${esc(r.by)} · ${esc(ago(r.updatedAt, now()))}</span></a> ${chip(r.kind, r.label)}</li>`;
     return `<div class="head"><h1>${esc(acct.business)}</h1><a class="btn primary" href="/portal/requests/new">New request</a></div>${flash(q)}
-      <section class="panel stack"><h2>Open requests</h2>${open.length ? `<ul class="list">${open.map(row).join('')}</ul>` : '<p class="muted">Nothing open. Send us a request and we’ll get back to you here.</p>'}</section>
+      ${hoursNote()}<section class="panel stack"><h2>Open requests</h2>${open.length ? `<ul class="list">${open.map(row).join('')}</ul>` : '<p class="muted">Nothing open. Send us a request and we’ll get back to you here.</p>'}</section>
       ${done.length ? `<section class="panel stack"><h2>Finished</h2><ul class="list">${done.slice(0, 20).map(row).join('')}</ul></section>` : ''}`;
   }
 
+  /** When we're closed, say when a request will be seen (nothing is lost; it waits in the queue). */
+  function hoursNote() {
+    const state = app.hours.state();
+    if (state.open) return '';
+    return `<p class="flash" role="status">${esc(state.text.replace(/^Closed(?: today \([^)]*\))?\.\s*Opens/, 'We’re closed. We’ll see this when we open').replace(/\.$/, ''))}. For something urgent, call ${esc(SHOP.phone)}.</p>`;
+  }
+
   function newRequest(acct, q) {
-    return `<div class="head"><h1>New request</h1><a class="btn" href="/portal">Back</a></div>${flash(q)}
+    return `<div class="head"><h1>New request</h1><a class="btn" href="/portal">Back</a></div>${flash(q)}${hoursNote()}
       <form class="panel stack" method="post" action="/portal/requests">
         <label>What do you need?<textarea name="request" rows="3" maxlength="500" required placeholder="Water pump for a 2015 John Deere 5075E"></textarea></label>
         <label>Part numbers, if you have them<input name="partNumbers" maxlength="200" autocomplete="off"></label>

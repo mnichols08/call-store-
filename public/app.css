@@ -369,3 +369,22 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; margin: .5rem 0 0; }
 .panel input[readonly], .panel input[size] { width: 100%; box-sizing: border-box; }
 .panel .row { flex-wrap: wrap; }
 .panel .row label { flex: 1 1 12rem; display: grid; gap: .25rem; }
+
+/* The shop's public page. */
+.site .hero { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1.4rem 1.2rem 1.5rem; margin-bottom: 1rem; display: grid; gap: 0.8rem; backdrop-filter: blur(6px); }
+.site .hero h1 { margin: 0; font-size: clamp(1.8rem, 6vw, 2.8rem); line-height: 1.1; }
+.site .eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.78rem; color: var(--muted-foreground); }
+.site .lede { margin: 0; max-width: 46rem; }
+.site .open-now { display: inline-flex; align-items: center; gap: 0.5rem; margin: 0; font-weight: 600; }
+.site .open-now .dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--cs-danger); }
+.site .open-now.is-open .dot { background: #2ea36b; }
+.site .actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.site .cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.7rem; }
+.site .cards li { display: grid; gap: 0.2rem; align-content: start; padding: 0.7rem 0.8rem; border: 1px solid var(--border); border-radius: 10px; }
+.site .cards li span { color: var(--muted-foreground); font-size: 0.92rem; }
+.site address { font-style: normal; font-weight: 600; }
+.site table.hours { max-width: 24rem; }
+.site table.hours th { text-align: left; font-weight: 600; }
+.site table.hours tr.today { outline: 2px solid var(--primary); outline-offset: -2px; }
+.site .site-foot { text-align: center; padding: 1rem 0 2rem; display: grid; gap: 0.3rem; font-size: 0.9rem; }
+.site h3 { margin: 0.4rem 0 0; font-size: 1rem; }

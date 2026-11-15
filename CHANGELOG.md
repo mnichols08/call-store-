@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: public page and hours
+- `/` is now the shop's public page for signed-out visitors (signed-in staff still get Today); robots.txt, sitemap and structured data.
+- Opening hours (`src/domain/hours.js`, `src/domain/shop.js`), a manager Hours page for closures and special hours, and an after-hours note for portal customers.
+
 ## Unreleased — scanning
 - Staff scan a customer's one-time badge (camera, photo or paste) to find them and start a call.
 - A rep's own QR lets a customer ask for access; staff approve and a join link goes out. See docs/portal.md.

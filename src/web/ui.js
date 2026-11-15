@@ -46,13 +46,14 @@ const NAV = [
   ['/reports', 'Reports', 'reports', 'report.view'],
   ['/audit', 'Activity', 'audit', 'audit.view'],
   ['/outbox', 'Outbox', 'outbox', 'portal.manage'],
+  ['/hours', 'Hours', 'hours', 'hours.manage'],
 ];
 
 /**
  * A whole page. `notice` is the signed one-line message from the last form (problem / done), and
  * `live` makes the page reload when a coworker changes what it shows.
  */
-export function layout({ title, who, active = '', body, notice = {}, business, live = false, script = '', navHtml = null, accountHtml = null, home = '/' }) {
+export function layout({ title, who, active = '', body, notice = {}, business, live = false, script = '', navHtml = null, accountHtml = null, home = '/', head = '', sub = 'Call desk', bodyClass = '' }) {
   const nav = navHtml ?? (who
     ? `<nav aria-label="Main">${NAV.filter(([, , , permission]) => !permission || can(who, permission))
         .map(([href, label, key]) => `<a href="${href}"${key === active ? ' aria-current="page"' : ''}>${esc(label)}</a>`).join('')}
@@ -71,16 +72,17 @@ export function layout({ title, who, active = '', body, notice = {}, business, l
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#0b132b">
-<title>${esc(title)} · ${esc(business)}</title>
+<title>${title === business ? esc(title) : `${esc(title)} · ${esc(business)}`}</title>
 <link rel="icon" href="data:,">
+${head}
 <link rel="stylesheet" href="/assets/zubra-ui-theme.css">
 <link rel="stylesheet" href="/assets/app.css">
 <script src="/assets/theme.js"></script>
 </head>
-<body${live ? ' data-live' : ''}>
+<body${live ? ' data-live' : ''}${bodyClass ? ` class="${esc(bodyClass)}"` : ''}>
 <div id="bg-layer" aria-hidden="true"></div>
 <a class="skip" href="#main">Skip to content</a>
-<header class="bar"><a class="brand" href="${home}">${esc(business)}<small>Call desk</small></a>${nav}${account}</header>
+<header class="bar"><a class="brand" href="${home}">${esc(business)}${sub ? `<small>${esc(sub)}</small>` : ''}</a>${nav}${account}</header>
 <main id="main">
 ${notice.problem ? `<p class="flash problem" role="alert">${esc(notice.problem)}</p>` : ''}${notice.done ? `<p class="flash done" role="status">${esc(notice.done)}</p>` : ''}
 ${body}

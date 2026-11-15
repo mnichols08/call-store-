@@ -62,7 +62,9 @@ after(() => {
 test('nobody gets in without signing in, and the sign-in page is open', async () => {
   await signedIn();
   const anon = browser();
-  assert.equal((await anon('/')).location, '/staff/sign-in');
+  const home = await anon('/');
+  assert.equal(home.status, 200, 'the front page is the shop’s public page');
+  assert.doesNotMatch(home.text, /Open calls|New call/);
   assert.equal((await anon('/calls/1')).location, '/staff/sign-in');
   assert.equal((await anon('/api/customers?q=a', { json: true })).status, 401);
   const page = await anon('/staff/sign-in');
@@ -152,7 +154,8 @@ test('someone is told, not let in, when the sign-in is wrong', async () => {
   const wrong = await stranger('/staff/sign-in', { method: 'POST', form: { email: 'olive@example.com', password: 'not the password' } });
   assert.equal(wrong.status, 303);
   assert.match(wrong.location, /problem=/);
-  assert.equal((await stranger('/')).location, '/staff/sign-in');
+  assert.equal((await stranger('/calls')).location, '/staff/sign-in');
+  assert.doesNotMatch((await stranger('/')).text, /Open calls|Today/);
 });
 
 test('a coworker asking you for help is the first thing you see on Today', async () => {
