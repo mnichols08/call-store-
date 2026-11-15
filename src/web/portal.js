@@ -113,7 +113,7 @@ export function createPortalPages({ app, config, zubra, now }) {
       <section class="panel stack"><h2>Invite a coworker</h2><p class="muted">They’ll see this business’s requests and updates. Each invite works for ${48} hours.</p>
         <form method="post" action="/portal/team/invite" class="row"><label>Email<input name="email" type="email" maxlength="120" required></label><button class="btn primary">Email an invite</button></form>
         <form method="post" action="/portal/team/invite"><button class="btn">Show a QR code</button></form>
-        ${made ? `<div class="qr">${qrSvg(share, { label: `Join ${acct.business}` })}</div><label>Link<input readonly value="${esc(share)}"></label>` : ''}</section>`;
+        ${made ? `${qrSvg(share, { label: `Join ${acct.business}` }) ? `<div class="qr">${qrSvg(share, { label: `Join ${acct.business}` })}</div>` : ''}<label>Link<input readonly value="${esc(share)}"></label>` : ''}</section>`;
   }
 
   function sentPage(res, nonce, title, text) {

@@ -3,7 +3,7 @@
 Customers send parts requests online and follow them without calling. Staff see them in the same queue as phone calls (marked **Web**).
 
 ## Joining
-- Accounts exist only through an **invite**: a QR code a rep shows from the customer's page (or an emailed link), or one a member of that business shows from **Team**.
+- Accounts exist only through an **invite**: a QR code (drawn here by Symbology, nothing sent to another service) a rep shows from the customer's page (or an emailed link), or one a member of that business shows from **Team**.
 - An invite is 48 hours, ten people at most, and can be turned off from the customer's page. Only a hash is stored.
 - The person gives a name and email; a **one-time link** goes to that email (30 minutes). Opening it only asks to confirm, so mail scanners can't use it up.
 - An account belongs to one business. The first person from a business is its admin; admins (and shop managers) can remove people.

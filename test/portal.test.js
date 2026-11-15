@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { freshApp, owner, manager, ann, bob } from './helpers.js';
 import { cleanEmail } from '../src/domain/portal.js';
-import { qrSvg } from '../src/infra/qr.js';
+import { qrSvg, qrReadFrame, QR_MAX_BYTES } from '../src/infra/qr.js';
 import { PORTAL } from '../src/app/portal.js';
 
 function setup() {
@@ -29,12 +29,25 @@ test('email addresses are checked sensibly', () => {
   for (const bad of ['', 'pat', 'pat@', '@farm.com', 'pat@farm', 'a b@c.com', 'a@b.com, c@d.com', '<x>@y.com']) assert.equal(cleanEmail(bad), null, bad);
 });
 
-test('a QR code is a real, self-contained picture of the address', () => {
-  const svg = qrSvg('https://parts.example/join/abc', { label: 'Join' });
+test('a QR code is a real, self-contained picture of the address, and it scans back', () => {
+  const link = 'https://parts.example/join/abcDEF123_-xyz0123456789abcdefgh';
+  const svg = qrSvg(link, { label: 'Join <Bubba & Sons>' });
   assert.match(svg, /^<svg[^>]+viewBox/);
   assert.ok(svg.includes('<path'));
-  assert.ok(!/<script|onload|href=/i.test(svg));
+  assert.ok(!/<script|\son\w+=|href=/i.test(svg), 'nothing in it can run or link out');
+  assert.ok(!svg.includes('<Bubba'), 'the label is escaped');
   assert.notEqual(qrSvg('a'), qrSvg('b'));
+  assert.equal(qrSvg(''), null);
+  assert.equal(qrSvg('x'.repeat(QR_MAX_BYTES + 1)), null, 'too long to be a code');
+  // Draw the picture into pixels and read it with the decoder, as a phone would.
+  const side = Number(/viewBox="0 0 (\d+) /.exec(svg)[1]);
+  const scale = 6;
+  const width = side * scale;
+  const luma = new Uint8Array(width * width).fill(255);
+  for (const [, x, y, run] of svg.matchAll(/M(\d+) (\d+)h(\d+)v1/g)) {
+    for (let dy = 0; dy < scale; dy += 1) for (let dx = 0; dx < Number(run) * scale; dx += 1) luma[(Number(y) * scale + dy) * width + Number(x) * scale + dx] = 0;
+  }
+  assert.equal(qrReadFrame({ width, height: width, luma }), link);
 });
 
 test('only staff with the right to invite can make an invite, and it is limited', async () => {

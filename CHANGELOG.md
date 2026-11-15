@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased — QR codes
+- QR codes now come from the shop's own Symbology library (`@journey-to-code/symbology`) instead of `qrcode-generator`. A test draws a code into pixels and reads it back with Symbology's decoder.
+
 ## Unreleased — streaming
 - The call page is sent at once; the vehicle matches stream in when the lookup finishes (Zubra promise props). Slow or failing lookups stop waiting after `LOOKUP_TIMEOUT_MS` and show a plain message. See docs/zubra-findings.md.
 - The part finder's AI answers stream in too: saved answers and the page show at once, "Asking the AI…" holds the place. A reload never asks the AI again.

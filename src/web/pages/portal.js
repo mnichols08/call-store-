@@ -6,6 +6,8 @@ import { qrSvg } from '../../infra/qr.js';
 import { UPDATE_KINDS, STAFF_KINDS } from '../../domain/portal.js';
 
 const originOf = (ctx) => (ctx.config.publicUrl || `${ctx.req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'}://${ctx.req.headers.host}`).replace(/\/$/, '');
+/** The QR code in its box, or nothing if the address is too long to be one (the link is shown either way). */
+const codeBox = (link, label) => { const svg = qrSvg(link, { label }); return svg ? `<div class="qr">${svg}</div>` : ''; };
 const WORDS = { 'email': 'That email address doesn’t look right.', 'slow-down': 'Too many invites just now. Try again in a little while.', 'message': 'Add a short message for that kind of update.', 'kind': 'Pick an update to send.' };
 const problem = (r) => WORDS[r.error] ?? say(r.error);
 
@@ -53,7 +55,7 @@ export function portalRoutes(router) {
     const link = `${originOf(ctx)}/join/${r.token}`;
     const name = ctx.app.customers.get(ctx.who, id).customer?.name ?? '';
     return ctx.send('Invite', `<div class="head"><h1>Invite ${esc(name)}</h1><a class="btn" href="/customers/${id}#portal">Back</a></div>
-      <section class="panel stack"><p>Have them scan this with their phone. It works for 48 hours, for ten people at most.</p><div class="qr">${qrSvg(link, { label: `Join ${name}` })}</div>
+      <section class="panel stack"><p>Have them scan this with their phone. It works for 48 hours, for ten people at most.</p>${codeBox(link, `Join ${name}`)}
       <label>Link<input id="the-link" readonly value="${esc(link)}"></label><div class="row"><button class="btn primary" type="button" data-copy="the-link">Copy link</button></div></section>`, { script: '<script src="/assets/details.js" defer></script>' });
   });
   router.post('/customers/:id/portal/revoke', (ctx) => {
