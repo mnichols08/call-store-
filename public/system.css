@@ -132,3 +132,7 @@ body.app {
 
 /* quick entry: let the panel shrink on a phone instead of pushing its buttons off the screen */
 .app #quick, .app #quick-entry { min-width: 0; max-width: 100%; }
+
+/* Today: how long a call has waited */
+.app .plain li .wait { font-variant-numeric: tabular-nums; color: #4a5470; white-space: nowrap; opacity: 1; }
+.app .plain li .wait.late { color: #a40000; font-weight: 650; }

@@ -19,16 +19,32 @@ export function overviewRoutes(router) {
     const nudges = app.nudges.inbox(who).nudges;
     const nudgePanel = nudges.length ? `<section class="panel asked" aria-label="Nudges"><h2>${nudges.length === 1 ? 'A coworker nudged you' : 'Coworkers nudged you'}</h2><ul class="plain">${nudges.map((n) => `<li><span><strong>${esc(people.name(n.from_email))}</strong> ${esc(n.message || (n.call_id ? 'wants you to look at this call.' : 'wants a word.'))}${n.call_id ? ` <a href="/calls/${n.call_id}">Call #${n.call_id}</a>` : ''}<small>${esc(ago(n.created_at, ctx.now()))}</small></span>
       <form method="post" action="/nudges/${n.id}/dismiss">${button(page, 'Got it', { variant: 'outline', size: 'sm' })}</form></li>`).join('')}</ul></section>` : '';
+    // For managers and owners: what is waiting longest, and what each person has open.
+    let waiting = '';
+    let team = '';
+    if (can(who, 'report.view')) {
+      const open = app.calls.queue(who, { view: 'active', limit: 200 }).calls;
+      const unassigned = open.filter((c) => !c.assignee).slice(0, 6);
+      waiting = `<section class="panel"><h2>Waiting for someone</h2>${unassigned.length
+        ? `<ul class="plain">${unassigned.map((c) => `<li><span><a href="/calls/${c.id}">#${c.id} ${esc(c.title)}</a><small>${esc(c.application || '')}</small></span><span class="wait${ctx.now() - c.created_at > (ctx.config.pickupTargetMinutes ?? 5) * 60_000 ? ' late' : ''}">${esc(ago(c.created_at, ctx.now()))}</span></li>`).join('')}</ul>`
+        : '<p class="muted">Every open call has someone on it.</p>'}</section>`;
+      const by = new Map();
+      for (const c of open) if (c.assignee) by.set(c.assignee, (by.get(c.assignee) ?? 0) + 1);
+      team = `<section class="panel"><h2>Who has what</h2>${by.size
+        ? `<ul class="plain">${[...by].sort((a, b) => b[1] - a[1]).map(([email, n]) => `<li><span>${esc(people.name(email))}</span><span><strong>${n}</strong> open</span></li>`).join('')}</ul>`
+        : '<p class="muted">Nobody has a call right now.</p>'}</section>`;
+    }
+    const day = new Intl.DateTimeFormat('en-US', { timeZone: ctx.config.zone, weekday: 'long', month: 'long', day: 'numeric' }).format(ctx.now());
     return ctx.send('Today', `
-<div class="head"><h1>Today</h1></div>
+<div class="head"><div><h1>Today</h1><p class="muted">${esc(day)}</p></div></div>
 ${nudgePanel}
 <section class="panel" id="push-panel" hidden><h2>Notifications on this device</h2><p class="muted" id="push-state">Get a nudge even when this tab is closed.</p><button type="button" id="push-toggle" class="btn">Turn on</button></section>
 ${askedOfMe.length ? `<section class="panel asked" aria-label="Asked of you"><h2>${askedOfMe.length === 1 ? 'A coworker is asking you for help' : 'Coworkers are asking you for help'}</h2>${list(askedOfMe)}</section>` : ''}
 <div class="stats">
 ${stat(page, { label: 'Open calls', value: String(n.active) })}${stat(page, { label: 'Nobody has yet', value: String(n.unassigned) })}
 ${stat(page, { label: 'Mine', value: String(n.mine) })}${stat(page, { label: 'Asking for help', value: String(n.help) })}${stat(page, { label: 'Parked', value: String(n.parked) })}</div>
-<div class="workspace"><div class="main-col"><section class="panel"><h2>Asking for help</h2>${help.length ? list(help) : '<p class="muted">Nobody needs a hand right now.</p>'}</section></div>
-<aside class="side-col"><section class="panel"><h2>Yours</h2>${mine.length ? list(mine) : '<p class="muted">You haven’t taken a call yet. <a href="/calls?view=unassigned">See what’s waiting</a>.</p>'}</section></aside></div>`, { active: 'home', live: true });
+<div class="workspace"><div class="main-col">${waiting}<section class="panel"><h2>Asking for help</h2>${help.length ? list(help) : '<p class="muted">Nobody needs a hand right now.</p>'}</section></div>
+<aside class="side-col">${team}<section class="panel"><h2>Yours</h2>${mine.length ? list(mine) : '<p class="muted">You haven’t taken a call yet. <a href="/calls?view=unassigned">See what’s waiting</a>.</p>'}</section></aside></div>`, { active: 'home', live: true });
   });
 
   router.get('/reports', (ctx) => {
@@ -38,12 +54,12 @@ ${stat(page, { label: 'Mine', value: String(n.mine) })}${stat(page, { label: 'As
     const rows = days(app, ctx.who, range, config);
     const outcomes = tally(app, ctx.who, range);
     const max = Math.max(1, ...rows.map((r) => r.count));
-    const t = app.stats.timing(ctx.who, range, { targetMs: config.pickupTargetMinutes * 60_000 });
+    const t = app.stats.timing(ctx.who, range, { targetMs: (config.pickupTargetMinutes ?? 5) * 60_000 });
     const pct = t.withinTarget == null ? '—' : `${Math.round(t.withinTarget * 100)}%`;
     const timing = `<h2 class="section">How fast</h2>
 <div class="stats">
 ${stat(page, { label: 'Median wait to pick up', value: duration(t.waitMedian) })}${stat(page, { label: '90% picked up within', value: duration(t.waitP90) })}
-${stat(page, { label: `Picked up in ${config.pickupTargetMinutes} min`, value: pct })}${stat(page, { label: 'Median time to finish', value: duration(t.handleMedian) })}
+${stat(page, { label: `Picked up in ${config.pickupTargetMinutes ?? 5} min`, value: pct })}${stat(page, { label: 'Median time to finish', value: duration(t.handleMedian) })}
 ${stat(page, { label: 'Longest waiting now', value: t.longestWaitingNow ? duration(t.longestWaitingNow.ms) : 'None' })}</div>
 ${t.people.length ? `<section class="panel"><h2>By person</h2><table class="grid compact"><thead><tr><th>Who</th><th>Finished</th><th>Median time to finish</th></tr></thead><tbody>${t.people.map((p) => `<tr><td>${esc(ctx.people.name(p.email))}</td><td>${p.finished}</td><td>${duration(p.handleMedian)}</td></tr>`).join('')}</tbody></table></section>` : ''}
 ${t.neverPickedUp ? `<p class="panel muted">${t.neverPickedUp} call${t.neverPickedUp === 1 ? ' was' : 's were'} never picked up by anyone in this range.</p>` : ''}`;
@@ -54,12 +70,22 @@ ${stat(page, { label: 'Answers the shop has confirmed', value: String(u.answers.
 <p class="muted">${u.enabled ? `AI lookups use ${esc(u.model)}. This month: ${u.month.calls} lookups, ${u.month.searches} web searches, ${u.month.input + u.month.output} tokens, ${u.month.failed} failed.` : 'AI lookups are off (no key set). Only saved answers are shown.'}</p>` : '';
     return ctx.send('Reports', `
 <div class="head"><h1>Reports</h1><div class="row"><button type="button" class="btn" data-print>Print</button><a class="btn" href="/reports.csv?days=${range.days}">Calls per day (CSV)</a><a class="btn" href="/reports/timing.csv?days=${range.days}">Timing (CSV)</a></div></div>
+<div id="reports" data-config="${esc(JSON.stringify(reportData(ctx, range)))}">
 <nav class="tabs" aria-label="Range">${[7, 14, 30, 90].map((d) => `<a href="/reports?days=${d}"${d === range.days ? ' aria-current="true"' : ''}>Last ${d} days</a>`).join('')}</nav>
 <div class="workspace"><div class="main-col"><section class="panel"><h2>Calls taken per day</h2>
 ${rows.length ? `<ol class="bars" aria-label="Calls per day">${rows.map((r) => `<li><span class="day">${esc(r.start.slice(5))}</span><span class="bar" style="--w:${Math.round((r.count / max) * 100)}%"></span><span class="n">${r.count}</span></li>`).join('')}</ol>` : empty(page, 'No calls in this range')}</section></div>
 <aside class="side-col"><section class="panel"><h2>What came of them</h2>${outcomes.length ? `<ul class="plain">${outcomes.map(([label, count]) => `<li><span>${esc(label)}</span><span>${count}</span></li>`).join('')}</ul>` : '<p class="muted">Nothing finished in this range.</p>'}</section></aside></div>
 ${timing}
-${partsUse}`, { active: 'reports' });
+</div>
+<link rel="stylesheet" href="/assets/islands/reports.css">
+${partsUse}
+<script src="/assets/islands/reports.js" type="module"></script>`, { active: 'reports' });
+  });
+
+  // The same numbers as JSON, for the page's range switcher.
+  router.get('/reports.json', (ctx) => {
+    if (!can(ctx.who, 'report.view')) return ctx.json({ error: 'forbidden' }, 403);
+    return ctx.json({ ok: true, ...reportData(ctx, rangeOf(ctx, ctx.config)) });
   });
 
   router.get('/reports.csv', (ctx) => {
@@ -94,6 +120,22 @@ function subjectLink(subject) {
   const [kind, id] = subject.split(':');
   const href = { call: 'calls', customer: 'customers', item: 'items' }[kind];
   return href && /^\d+$/.test(id ?? '') ? `<a href="/${href}/${id}">${esc(kind)} #${esc(id)}</a>` : esc(subject);
+}
+
+/** Everything the reports page draws for a range, and the same-length range just before it for comparison. */
+function reportData(ctx, range) {
+  const { app, who, config, people } = ctx;
+  const target = (config.pickupTargetMinutes ?? 5) * 60_000;
+  const one = (r) => {
+    const t = app.stats.timing(who, r, { targetMs: target });
+    return {
+      rows: days(app, who, r, config).map((d) => ({ day: d.start, count: d.count })),
+      outcomes: tally(app, who, r),
+      timing: { waitMedian: t.waitMedian, waitP90: t.waitP90, withinTarget: t.withinTarget, handleMedian: t.handleMedian, longestWaiting: t.longestWaitingNow?.ms ?? null, neverPickedUp: t.neverPickedUp },
+      people: t.people.map((p) => ({ name: people.name(p.email), finished: p.finished, handleMedian: p.handleMedian })),
+    };
+  };
+  return { days: range.days, targetMinutes: config.pickupTargetMinutes ?? 5, now: one(range), before: one({ days: range.days, from: range.from - range.days * DAY, to: range.from - 1 }) };
 }
 
 function rangeOf(ctx, config) {

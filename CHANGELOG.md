@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased: design system (owner and manager)
+- Reports is now an interactive page (a Svelte island): switch the range without reloading, see calls per day against the period before, and each speed number beside what it was. Numbers come from `/reports.json`; without JavaScript the plain tables and range links still work.
+- Today shows managers and owners who is waiting longest (late calls in red) and what each person has open, plus the date.
+- Fix: "Picked up in undefined min" when no pickup target is configured; it now uses the 5-minute default.
+
 ## Unreleased: quick entry
 - Call screen: type what the caller wants the way you say it (`90 eclipse front brakes`, `front struts for 2000 tacoma`, `universal joint for 2007 chevy 3/4 ton`) and press Enter. Each Enter is one line; following lines stay on that vehicle until a new one is typed (`07 cherokee 4.0`). Fixed rules, no AI, with a live read-back. The call's vehicle and queue title follow the lines. See docs/quick-entry.md.
 
