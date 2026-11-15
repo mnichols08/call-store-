@@ -36,37 +36,47 @@ export function callBadges(page, call, people) {
   return parts.join(' ');
 }
 
+// The sidebar: [section, [[href, label, key, permission, icon], ...]]. A section with nothing the
+// person may open is left out.
 const NAV = [
-  ['/', 'Today', 'home', null],
-  ['/calls', 'Calls', 'calls', 'call.view'],
-  ['/watch', 'Live', 'watch', 'call.watch'],
-  ['/customers', 'Customers', 'customers', 'customer.view'],
-  ['/scan', 'Scan', 'scan', 'customer.view'],
-  ['/items', 'Items', 'items', 'item.view'],
-  ['/reports', 'Reports', 'reports', 'report.view'],
-  ['/audit', 'Activity', 'audit', 'audit.view'],
-  ['/deliveries', 'Deliveries', 'deliveries', 'call.view'],
-  ['/orders', 'Orders', 'orders', 'order.view'],
-  ['/outbox', 'Outbox', 'outbox', 'portal.manage'],
-  ['/hours', 'Hours', 'hours', 'hours.manage'],
+  ['Work', [
+    ['/', 'Today', 'home', null, 'M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z'],
+    ['/calls', 'Calls', 'calls', 'call.view', 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z'],
+    ['/watch', 'Live', 'watch', 'call.watch', 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zm10 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
+    ['/deliveries', 'Deliveries', 'deliveries', 'call.view', 'M1 6h13v10H1zM14 9h4l3 3v4h-7zM6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm12 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'],
+    ['/orders', 'Orders', 'orders', 'order.view', 'M6 2h9l5 5v15H6zM14 2v6h6M9 13h8M9 17h8'],
+  ]],
+  ['Customers and parts', [
+    ['/customers', 'Customers', 'customers', 'customer.view', 'M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0zM4 21a8 8 0 0 1 16 0'],
+    ['/scan', 'Scan', 'scan', 'customer.view', 'M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5M7 12h10'],
+    ['/items', 'Items', 'items', 'item.view', 'M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v9'],
+  ]],
+  ['Manage', [
+    ['/reports', 'Reports', 'reports', 'report.view', 'M4 20V10M10 20V4M16 20v-8M22 20H2'],
+    ['/audit', 'Activity', 'audit', 'audit.view', 'M3 12h4l3-8 4 16 3-8h4'],
+    ['/outbox', 'Outbox', 'outbox', 'portal.manage', 'M3 5h18v14H3zM3 6l9 7 9-7'],
+    ['/hours', 'Hours', 'hours', 'hours.manage', 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2'],
+    ['/staff/people', 'People', 'people', 'owner', 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20a7 7 0 0 1 14 0M17 11a3 3 0 1 0 0-6M22 20a7 7 0 0 0-4-6'],
+  ]],
 ];
+const icon = (d) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+const sidebar = (who, active) => NAV.map(([section, links]) => {
+  const shown = links.filter(([, , , permission]) => !permission || (permission === 'owner' ? who.roles.includes('owner') : can(who, permission)));
+  return shown.length
+    ? `<div class="side-group"><p class="side-title">${esc(section)}</p>${shown.map(([href, label, key, , d]) => `<a href="${href}"${key === active ? ' aria-current="page"' : ''}>${icon(d)}<span>${esc(label)}</span></a>`).join('')}</div>`
+    : '';
+}).join('');
+const initials = (who) => esc(String(who.name || who.email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join(''));
 
 /**
  * A whole page. `notice` is the signed one-line message from the last form (problem / done), and
  * `live` makes the page reload when a coworker changes what it shows.
  */
 export function layout({ title, who, active = '', body, notice = {}, business, live = false, script = '', navHtml = null, accountHtml = null, home = '/', head = '', sub = 'Call desk', bodyClass = '' }) {
-  const nav = navHtml ?? (who
-    ? `<nav aria-label="Main">${NAV.filter(([, , , permission]) => !permission || can(who, permission))
-        .map(([href, label, key]) => `<a href="${href}"${key === active ? ' aria-current="page"' : ''}>${esc(label)}</a>`).join('')}
-        ${who.roles.includes('owner') ? `<a href="/staff/people"${active === 'people' ? ' aria-current="page"' : ''}>People</a>` : ''}</nav>`
-    : '');
+  const shell = Boolean(who) && navHtml === null && accountHtml === null;
   const toggle = '<button type="button" class="icon-btn theme-toggle" aria-label="Switch theme">🌙</button>';
-  const account = accountHtml ?? (who
-    ? `<div class="account"><form method="post" action="/calls"><button class="new-call" type="submit" title="New call (N)">New call</button></form>
-        <a href="/staff/password" class="who" title="Change password"><span>${esc(who.name || who.email)}</span><small>${esc(who.roles.join(', '))}</small></a>
-        <form method="post" action="/staff/sign-out"><button class="link" type="submit">Sign out</button></form>${toggle}</div>`
-    : `<div class="account">${toggle}</div>`);
+  const nav = shell ? '' : (navHtml ?? '');
+  const account = accountHtml ?? `<div class="account">${toggle}</div>`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -78,20 +88,30 @@ export function layout({ title, who, active = '', body, notice = {}, business, l
 <link rel="icon" href="data:,">
 ${head}
 <link rel="stylesheet" href="/assets/zubra-ui-theme.css">
-<link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="/assets/app.css"><link rel="stylesheet" href="/assets/system.css">
 <script src="/assets/theme.js"></script>
 </head>
-<body${live ? ' data-live' : ''}${bodyClass ? ` class="${esc(bodyClass)}"` : ''}>
-<div id="bg-layer" aria-hidden="true"></div>
+<body${live ? ' data-live' : ''} class="${shell ? 'app ' : ''}${esc(bodyClass)}">
+${shell ? '' : '<div id="bg-layer" aria-hidden="true"></div>'}
 <a class="skip" href="#main">Skip to content</a>
-<header class="bar"><a class="brand" href="${home}">${esc(business)}${sub ? `<small>${esc(sub)}</small>` : ''}</a>${nav}${account}</header>
-<main id="main">
+${shell ? `<div class="shell">
+<aside class="side" id="side" aria-label="Main">
+<a class="side-brand" href="${home}"><span class="mark" aria-hidden="true">${esc(business[0] ?? 'S')}</span><span>${esc(business)}<small>${esc(sub)}</small></span></a>
+<form method="post" action="/calls" class="side-new"><button class="new-call" type="submit" title="New call (N)">${icon('M12 5v14M5 12h14')}New call</button></form>
+<nav>${sidebar(who, active)}</nav>
+<div class="side-foot"><a href="/staff/password" class="me" title="Change password"><span class="avatar" aria-hidden="true">${initials(who)}</span><span class="who"><span>${esc(who.name || who.email)}</span><small>${esc(who.roles.join(', '))}</small></span></a>
+<div class="row"><form method="post" action="/staff/sign-out"><button class="link" type="submit">Sign out</button></form>${toggle}</div></div>
+</aside>
+<div class="scrim" data-shell-close></div>
+<div class="main-col"><header class="topbar"><button type="button" class="icon-btn menu-btn" aria-controls="side" aria-expanded="false" aria-label="Menu">${icon('M4 6h16M4 12h16M4 18h16')}</button><span class="crumb">${esc(title)}</span></header>
+<main id="main">` : `<header class="bar"><a class="brand" href="${home}">${esc(business)}${sub ? `<small>${esc(sub)}</small>` : ''}</a>${nav}${account}</header>
+<main id="main">`}
 ${notice.problem ? `<p class="flash problem" role="alert">${esc(notice.problem)}</p>` : ''}${notice.done ? `<p class="flash done" role="status">${esc(notice.done)}</p>` : ''}
 ${body}
-</main>
+</main>${shell ? '</div></div>' : ''}
 <div id="toasts" aria-live="polite"></div>
 <span id="net-pill" role="status" hidden><span class="dot"></span>Offline. Changes save when you’re back.</span>
-<script src="/assets/background.js" defer></script><script src="/assets/network.js" defer></script>
+${shell ? '<script src="/assets/shell.js" defer></script>' : '<script src="/assets/background.js" defer></script>'}<script src="/assets/network.js" defer></script>
 ${who ? '<script src="/assets/shortcuts.js" defer></script><script src="/assets/nudge.js" defer></script>' : ''}<script src="/assets/print.js" defer></script>${live ? '<script src="/assets/live.js" defer></script>' : ''}${script}
 </body>
 </html>`;

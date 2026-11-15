@@ -1,0 +1,102 @@
+/* The staff system: a sidebar app shell on quiet neutral surfaces. Brand blue is an accent, never a
+   backdrop. Loaded after app.css and scoped to body.app, so the public page and the portal keep
+   their own look until they are redesigned. Zubra UI's variables are pointed at the same tokens. */
+:root {
+  --sys-bg: #0f1115; --sys-surface: #171a21; --sys-raised: #1d212a; --sys-line: #2a2f3a; --sys-line-soft: #222731;
+  --sys-text: #e8eaf0; --sys-muted: #98a1b3; --sys-accent: #5b9dff; --sys-accent-fg: #07111f; --sys-accent-soft: rgba(91, 157, 255, .14);
+  --sys-side: #12151b; --sys-hover: rgba(255, 255, 255, .05); --sys-shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  --sys-danger: #f0716f; --sys-ok: #3fc58a; --sys-warn: #e8b04a;
+}
+:root[data-theme='light'] {
+  --sys-bg: #f4f5f8; --sys-surface: #ffffff; --sys-raised: #f8f9fb; --sys-line: #dcdfe6; --sys-line-soft: #eceef3;
+  --sys-text: #14171f; --sys-muted: #5b6475; --sys-accent: #1f5fd8; --sys-accent-fg: #ffffff; --sys-accent-soft: rgba(31, 95, 216, .09);
+  --sys-side: #ffffff; --sys-hover: rgba(20, 23, 31, .05); --sys-shadow: 0 1px 2px rgba(20, 23, 31, .06);
+  --sys-danger: #b42323; --sys-ok: #0b7a4f; --sys-warn: #9a5b00;
+}
+body.app {
+  --cs-bg: var(--sys-bg); --cs-fg: var(--sys-text); --cs-muted: var(--sys-muted); --cs-accent: var(--sys-accent);
+  --cs-card: var(--sys-surface); --cs-border: var(--sys-line); --cs-btn: var(--sys-raised); --cs-input: var(--sys-surface);
+  --cs-primary: var(--sys-accent); --cs-primary-fg: var(--sys-accent-fg); --cs-danger: var(--sys-danger); --cs-ok: var(--sys-ok); --cs-warn: var(--sys-warn);
+  --cs-shadow: var(--sys-shadow); --cs-overlay: transparent; --cs-bar: var(--sys-side); --cs-hover: var(--sys-hover);
+  --background: var(--sys-surface); --foreground: var(--sys-text); --card: var(--sys-surface); --popover: var(--sys-surface); --muted: var(--sys-raised);
+  --muted-foreground: var(--sys-muted); --primary: var(--sys-accent); --primary-foreground: var(--sys-accent-fg); --border: var(--sys-line); --input: var(--sys-line);
+  --ring: var(--sys-accent); --radius: 8px; --secondary: var(--sys-raised); --secondary-foreground: var(--sys-text); --accent: var(--sys-hover); --accent-foreground: var(--sys-text);
+  background: var(--sys-bg); background-image: none; letter-spacing: 0; font-size: 15px; line-height: 1.5;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased;
+}
+.app .shell { display: grid; grid-template-columns: 15rem minmax(0, 1fr); min-height: 100vh; }
+.app .side { position: sticky; top: 0; align-self: start; height: 100vh; display: flex; flex-direction: column; gap: .75rem; padding: 1rem .75rem; overflow-y: auto; background: var(--sys-side); border-right: 1px solid var(--sys-line); }
+.app .side-brand { display: flex; align-items: center; gap: .65rem; padding: .25rem .5rem; color: var(--sys-text); text-decoration: none; font-weight: 650; line-height: 1.2; }
+.app .side-brand small { font-weight: 400; font-size: .75rem; }
+.app .mark { display: grid; place-items: center; flex: none; width: 2rem; height: 2rem; border-radius: 8px; background: var(--sys-accent); color: var(--sys-accent-fg); font-weight: 750; }
+.app .side-new { margin: 0 .25rem; }
+.app .new-call { width: 100%; justify-content: center; gap: .4rem; min-height: 38px; padding: .45rem .8rem; border-radius: 8px; box-shadow: none; display: inline-flex; align-items: center; }
+.app .new-call:hover { transform: none; box-shadow: none; filter: brightness(1.08); }
+.app .ic { width: 1.1rem; height: 1.1rem; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.app .side nav { display: grid; gap: 1rem; flex: 1; align-content: start; }
+.app .side-title { margin: 0 .6rem .25rem; font-size: .7rem; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; color: var(--sys-muted); }
+.app .side-group { display: grid; gap: 1px; }
+.app .side-group a { display: flex; align-items: center; gap: .6rem; padding: .45rem .6rem; border-radius: 7px; color: var(--sys-muted); text-decoration: none; font-weight: 500; }
+.app .side-group a:hover { background: var(--sys-hover); color: var(--sys-text); }
+.app .side-group a[aria-current] { background: var(--sys-accent-soft); color: var(--sys-accent); font-weight: 600; }
+.app .side-foot { display: grid; gap: .4rem; padding-top: .75rem; border-top: 1px solid var(--sys-line); }
+.app .me { display: flex; align-items: center; gap: .6rem; padding: .25rem .5rem; color: var(--sys-text); text-decoration: none; min-width: 0; }
+.app .avatar { display: grid; place-items: center; flex: none; width: 2rem; height: 2rem; border-radius: 50%; background: var(--sys-raised); border: 1px solid var(--sys-line); font-size: .75rem; font-weight: 650; }
+.app .who { display: grid; min-width: 0; line-height: 1.2; font-weight: 600; }
+.app .who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app .side-foot .row { justify-content: space-between; padding: 0 .25rem; }
+.app .side-foot .link { text-decoration: none; color: var(--sys-muted); min-height: 36px; padding: .25rem .5rem; }
+.app .side-foot .link:hover { color: var(--sys-text); }
+.app .icon-btn { min-width: 36px; min-height: 36px; border-radius: 8px; background: transparent; font-size: 1rem; }
+.app .icon-btn:hover { transform: none; box-shadow: none; background: var(--sys-hover); }
+.app .main-col { min-width: 0; }
+.app .topbar { display: none; }
+.app main { max-width: 84rem; margin: 0; padding: 1.75rem 2rem 4rem; }
+.app h1 { font-size: 1.5rem; font-weight: 650; letter-spacing: -.01em; }
+.app h2 { font-size: .95rem; font-weight: 650; }
+.app .head { margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--sys-line-soft); }
+.app .panel, .app table.grid { background: var(--sys-surface); backdrop-filter: none; -webkit-backdrop-filter: none; border: 1px solid var(--sys-line); border-radius: 10px; box-shadow: var(--sys-shadow); }
+.app .panel { padding: 1.1rem 1.25rem 1.2rem; }
+.app .grid th { background: var(--sys-raised); font-size: .7rem; font-weight: 650; letter-spacing: .06em; color: var(--sys-muted); border-bottom: 1px solid var(--sys-line); }
+.app .grid td { border-bottom-color: var(--sys-line-soft); }
+.app .grid tbody tr:hover { background: var(--sys-hover); }
+.app .title { color: var(--sys-text); }
+.app .btn, .app button:not(.link):not(.new-call):not(.icon-btn) { min-height: 38px; padding: .45rem .85rem; border-radius: 8px; background: var(--sys-surface); border: 1px solid var(--sys-line); color: var(--sys-text); font-weight: 550; box-shadow: var(--sys-shadow); }
+.app .btn:hover, .app button:not(.link):not(.new-call):not(.icon-btn):hover { transform: none; filter: none; background: var(--sys-raised); box-shadow: var(--sys-shadow); }
+.app .btn.primary { background: var(--sys-accent); color: var(--sys-accent-fg); border-color: transparent; box-shadow: none; }
+.app .btn.primary:hover { background: var(--sys-accent); filter: brightness(1.08); }
+:root[data-theme='light'] .app .btn, :root[data-theme='light'] .app button:not(.link):not(.new-call):not(.icon-btn) { color: var(--sys-text); }
+:root[data-theme='light'] .app .btn.primary { color: #fff; }
+.app input:not([type]), .app input[type='text'], .app input[type='search'], .app input[type='number'], .app input[type='tel'], .app input[type='email'], .app input[type='password'], .app input[type='date'], .app select, .app textarea { min-height: 38px; padding: .45rem .7rem; border-radius: 8px; background: var(--sys-surface); border: 1px solid var(--sys-line); font-size: 15px; }
+.app input:focus-visible, .app select:focus-visible, .app textarea:focus-visible { outline: 2px solid var(--sys-accent); outline-offset: 0; border-color: transparent; }
+.app .tabs { gap: .25rem; padding-bottom: .75rem; margin-bottom: 1rem; border-bottom: 1px solid var(--sys-line-soft); }
+.app .tabs a { min-height: 34px; padding: 0 .8rem; border-radius: 7px; background: transparent; border-color: transparent; color: var(--sys-muted); font-weight: 550; }
+.app .tabs a:hover { transform: none; background: var(--sys-hover); color: var(--sys-text); }
+.app .tabs a[aria-current] { background: var(--sys-accent-soft); color: var(--sys-accent); box-shadow: none; }
+.app .flash { backdrop-filter: none; background: var(--sys-surface); border-radius: 8px; }
+.app .toast { backdrop-filter: none; background: var(--sys-surface); }
+.app #toasts { top: 1rem; }
+.app .savebar { backdrop-filter: none; background: var(--sys-surface); border: 1px solid var(--sys-line); border-radius: 10px; }
+.app .stats { gap: .75rem; }
+.app small, .app .muted, .app .hint { color: var(--sys-muted); }
+.app .scrim { display: none; }
+@media (max-width: 62rem) {
+  .app .shell { display: block; }
+  .app .side { position: fixed; z-index: 30; inset: 0 auto 0 0; width: min(18rem, 86vw); transform: translateX(-100%); transition: transform .18s ease; }
+  .app.side-open .side { transform: none; box-shadow: 0 0 40px rgba(0, 0, 0, .35); }
+  .app.side-open .scrim { display: block; position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, .45); }
+  .app .topbar { display: flex; align-items: center; gap: .5rem; position: sticky; top: 0; z-index: 10; padding: .5rem .75rem; padding-top: calc(.5rem + env(safe-area-inset-top)); background: var(--sys-side); border-bottom: 1px solid var(--sys-line); }
+  .app .crumb { font-weight: 650; }
+  .app main { padding: 1rem .9rem 4rem; }
+  .app .menu-btn { min-width: 44px; min-height: 44px; }
+}
+@media print { .app .shell { display: block; } .app .side, .app .topbar, .app .scrim { display: none !important; } .app main { padding: 0; } }
+
+/* Stat cards bring their own card: the grid cell stays plain so there is one border, not two. */
+.app .stats > * { background: none; border: 0; box-shadow: none; border-radius: 0; }
+/* The device-notification offer: one quiet line, not a card the size of the dashboard. */
+.app #push-panel:not([hidden]) { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; padding: .6rem 1rem; margin-bottom: 1rem; }
+.app #push-panel h2 { margin: 0; font-size: .9rem; }
+.app #push-panel p { margin: 0; flex: 1 1 12rem; }
+.app .search { gap: .4rem; }
+.app .head .row, .app .head .search { margin-left: auto; }

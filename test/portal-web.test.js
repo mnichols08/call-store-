@@ -157,7 +157,7 @@ test('the outbox is for managers, and staff can remove a member', async () => {
 
 /** Read the address out of a QR code on a page, the way a phone would. */
 function scanCode(html) {
-  const svg = /<svg[^>]*viewBox="0 0 (\d+) [^]*?<\/svg>/.exec(html);
+  const svg = /<svg[^>]*viewBox="0 0 (\d+) [^]*?<\/svg>/.exec(html.replace(/<svg class="ic"[^]*?<\/svg>/g, ""));
   assert.ok(svg, 'a QR code is on the page');
   const side = Number(svg[1]);
   const scale = 6;
