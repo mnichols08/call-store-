@@ -34,6 +34,7 @@ The first start prints a one-time link to make the first owner's account. Open i
 
 ```sh
 npm test                 # unit, application and HTTP tests
+npm run stress           # Zubra speed and memory benchmark (findings in docs/zubra-findings.md)
 ```
 
 Configuration is environment variables; see [`.env.example`](.env.example). `SESSION_SECRET` is required in production.

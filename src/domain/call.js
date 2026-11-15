@@ -1,3 +1,4 @@
+import { clip } from './text.js';
 // The call: the unit of work. These rules need no database, no web server and no UI framework.
 //
 // Workflow status, assignment and help are three separate things: a call can be parked and still
@@ -34,7 +35,7 @@ export const HELP = Object.freeze(['normal', 'anyone', 'specific']);
 
 export const APPLICATION_FIELDS = Object.freeze(['year', 'make', 'model', 'engine', 'drivetrain', 'vin', 'unit', 'freeform']);
 
-const clean = (value, max) => String(value ?? '').replace(/\r\n/g, '\n').trim().slice(0, max);
+const clean = (value, max) => clip(String(value ?? '').replace(/\r\n/g, '\n').trim(), max);
 
 /**
  * The fields of a call, cleaned. Everything is optional: a call with none of them is valid, and

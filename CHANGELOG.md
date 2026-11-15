@@ -2,7 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+- Text cut by a length limit in the middle of an emoji no longer breaks the pages that show it (found by the Zubra stress tests). Input is made well-formed, limits never split a character, and component props are cleaned.
+
 ### Added
+- Zubra stress tests and benchmark (`npm run stress`); findings in `docs/zubra-findings.md`.
 - Calls: start blank, capture progressively with autosave, claim, park, resume, ask for help, assign, finish with an outcome, reopen; timeline and audit trail.
 - Customers (people and organisations, many phones, contacts, history) and caller lookup by phone, name or account number.
 - Items catalog; add mid-call, link to calls.

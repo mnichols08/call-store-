@@ -294,3 +294,25 @@ test('the service worker is public; metrics need the token; request logs carry r
     second.server.close();
   }
 });
+
+test('text cut in the middle of an emoji, or sent with a stray surrogate half, never breaks a page', async () => {
+  const olive = await signedIn();
+  const path = (await olive('/calls', { method: 'POST', form: {} })).location;
+  // The emoji straddles each field's length limit, so trimming would cut it in two.
+  const cut = (max) => 'a'.repeat(max - 1) + '🙂 more';
+  const saved = await olive(`${path}/save`, { method: 'POST', json: true, form: { request: cut(2000), notes: cut(5000), caller_name: cut(120), part_numbers: cut(500), app_freeform: cut(1000), app_make: cut(120) } });
+  assert.equal(saved.status, 200, saved.text);
+  // A lone surrogate half, as a hand-built request can send it.
+  const stray = await olive(`${path}/save`, { method: 'POST', json: true, form: { revision: String(saved.json().revision), request: 'before \ud83d after' } });
+  assert.equal(stray.status, 200, stray.text);
+  for (const where of [path, `${path}/print`, '/calls', '/']) {
+    const page = await olive(where);
+    assert.equal(page.status, 200, `${where} broke: ${page.text.slice(0, 200)}`);
+    assert.ok(page.text.isWellFormed(), `${where} sent a lone surrogate`);
+  }
+  await olive('/customers', { method: 'POST', form: { name: `${'n'.repeat(119)}🙂`, kind: 'person' } });
+  assert.equal((await olive('/customers')).status, 200);
+  await olive('/items', { method: 'POST', form: { sku: 'EMO-1', name: `${'n'.repeat(199)}🙂` } });
+  assert.equal((await olive('/items')).status, 200);
+  assert.equal((await olive('/calls?q=' + encodeURIComponent('x'.repeat(79) + '🙂'))).status, 200);
+});

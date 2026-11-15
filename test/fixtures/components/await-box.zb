@@ -1,0 +1,16 @@
+<!-- A box whose text arrives later: `message` can be a promise. Used to stress streaming. -->
+<script>
+</script>
+<style>
+  :host { display: block; }
+</style>
+<await-box label="" message="">
+  <section class="box">
+    <h3>{label}</h3>
+    <zb-await value={message}>
+      <p class="pending">Loading…</p>
+      <zb-then as="text"><p class="ready">{text}</p></zb-then>
+      <zb-catch as="error"><p class="failed">Failed: {error.message}</p></zb-catch>
+    </zb-await>
+  </section>
+</await-box>

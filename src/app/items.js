@@ -2,8 +2,9 @@
 // call; changing or retiring one is a manager's job.
 import { transaction } from '../infra/db.js';
 import { can } from '../domain/permissions.js';
+import { clip } from '../domain/text.js';
 
-const clean = (value, max) => String(value ?? '').trim().slice(0, max);
+const clean = (value, max) => clip(String(value ?? '').trim(), max);
 const like = (text) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 /** "12.50" or "$1,200" to whole cents; '' for no price; undefined for nonsense. */

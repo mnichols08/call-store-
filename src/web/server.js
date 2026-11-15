@@ -109,7 +109,11 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
       if (size > MAX_BODY) throw Object.assign(new Error('too large'), { status: 413 });
       chunks.push(chunk);
     }
-    return new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+    // Buffer decoding already turns bad UTF-8 into U+FFFD; a percent-escaped surrogate half decodes the same way.
+    // Values are made well-formed once more, so nothing downstream ever sees half a character.
+    const form = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+    for (const [key, value] of [...form]) if (!value.isWellFormed()) form.set(key, value.toWellFormed());
+    return form;
   }
 
   /**

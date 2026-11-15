@@ -2,6 +2,7 @@
 // dismisses it, and the web layer is told (through `changed`) so it can reach them live, and by
 // push if they've allowed that.
 import { can } from '../domain/permissions.js';
+import { clip } from '../domain/text.js';
 
 export const MAX_MESSAGE = 200;
 /** No more than this many nudges from one person per minute: a nudge is for when it matters. */
@@ -19,7 +20,7 @@ export function createNudges({ db, audit, now, changed }) {
       const no = deny(who, 'nudge.send');
       if (no) return no;
       if (!to || to === who.email) return { error: 'nudge-who' };
-      const text = String(message ?? '').trim().slice(0, MAX_MESSAGE);
+      const text = clip(String(message ?? '').trim(), MAX_MESSAGE);
       if (callId != null && !db.prepare('SELECT 1 FROM calls WHERE id = ?').get(callId)) return { error: 'missing' };
       const recent = db.prepare('SELECT count(*) AS n FROM nudges WHERE from_email = ? AND created_at > ?').get(who.email, now() - RATE.windowMs).n;
       if (recent >= RATE.max) return { error: 'slow-down' };

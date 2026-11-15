@@ -5,13 +5,20 @@ import { esc } from './html.js';
 import { STATUS_LABEL } from '../domain/call.js';
 import { can } from '../domain/permissions.js';
 
-export const field = (page, props) => page.render('text-field', props);
-export const select = (page, props) => page.render('select-field', props);
-export const stat = (page, props) => page.render('stat-card', props);
-export const badge = (page, variant, text, dot = false) => page.render('status-badge', { variant, dot }, { default: esc(text) });
-export const button = (page, text, props = {}) => page.render('action-button', { type: 'submit', ...props }, { default: esc(text) });
-export const alert = (page, variant, heading, text) => page.render('alert-banner', { variant, heading }, { default: esc(text) });
-export const empty = (page, heading, text = '') => page.render('empty-state', { heading }, { default: esc(text) });
+/**
+ * Every string that reaches a component is made well-formed first: half a surrogate pair (an emoji
+ * cut in two, or sent by hand) makes Zubra's renderer throw, and one stored value would then break
+ * every page that shows it. Options (select) are cleaned the same way.
+ */
+const clean = (value) => (typeof value === 'string' ? value.toWellFormed() : Array.isArray(value) ? value.map(clean) : value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, clean(v)])) : value);
+
+export const field = (page, props) => page.render('text-field', clean(props));
+export const select = (page, props) => page.render('select-field', clean(props));
+export const stat = (page, props) => page.render('stat-card', clean(props));
+export const badge = (page, variant, text, dot = false) => page.render('status-badge', { variant: clean(variant), dot }, { default: esc(text) });
+export const button = (page, text, props = {}) => page.render('action-button', { type: 'submit', ...clean(props) }, { default: esc(text) });
+export const alert = (page, variant, heading, text) => page.render('alert-banner', { variant: clean(variant), heading: clean(heading) }, { default: esc(text) });
+export const empty = (page, heading, text = '') => page.render('empty-state', { heading: clean(heading) }, { default: esc(text) });
 
 const STATUS_VARIANT = { open: 'neutral', working: 'success', parked: 'warning', resolved: 'primary', closed: 'outline' };
 

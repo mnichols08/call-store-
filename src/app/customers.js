@@ -2,8 +2,9 @@
 import { transaction } from '../infra/db.js';
 import { can } from '../domain/permissions.js';
 import { digitsOf, formatPhone, searchableDigits } from '../domain/phone.js';
+import { clip } from '../domain/text.js';
 
-const clean = (value, max) => String(value ?? '').trim().slice(0, max);
+const clean = (value, max) => clip(String(value ?? '').trim(), max);
 const like = (text) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 export function createCustomers({ db, audit, now, changed }) {

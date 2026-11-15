@@ -1,6 +1,6 @@
 // Escaping and small helpers for writing HTML by hand. Everything a person typed goes through esc().
 const ENTITIES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-export const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ENTITIES[c]);
+export const esc = (value) => String(value ?? '').toWellFormed().replace(/[&<>"']/g, (c) => ENTITIES[c]);
 
 /** "5 min ago", "yesterday 3:12 PM": for a timestamp, in the business's zone. */
 export function ago(ms, now = Date.now()) {

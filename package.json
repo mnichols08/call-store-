@@ -13,7 +13,8 @@
     "migrate": "node src/infra/migrate-cli.js",
     "seed": "node src/infra/seed-cli.js",
     "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
-    "backup": "node src/infra/backup-cli.js"
+    "backup": "node src/infra/backup-cli.js",
+    "stress": "node --expose-gc stress/bench.js"
   },
   "dependencies": {
     "@zubra/compiler": "5.17.0",

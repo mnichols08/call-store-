@@ -5,6 +5,7 @@
 // transaction as the change.
 import { transaction } from '../infra/db.js';
 import { can } from '../domain/permissions.js';
+import { clip } from '../domain/text.js';
 import { canMove, cleanCallFields, cleanOutcome, summarize } from '../domain/call.js';
 
 const like = (text) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -263,7 +264,7 @@ export function createCalls({ db, audit, now, changed }) {
         parked: "c.status = 'parked'",
         done: "c.status IN ('resolved', 'closed')",
       }[view] ?? "c.status NOT IN ('resolved', 'closed')";
-      const text = String(q ?? '').trim().slice(0, 80);
+      const text = clip(String(q ?? '').trim(), 80);
       const params = { me: who.email, q: like(text), none: text === '' ? 1 : 0, limit };
       const rows = db.prepare(`SELECT c.*, cu.name AS customer_name FROM calls c LEFT JOIN customers cu ON cu.id = c.customer_id
         WHERE ${where} AND :me IS NOT NULL AND (:none = 1 OR c.request LIKE :q ESCAPE '\\' OR c.part_numbers LIKE :q ESCAPE '\\' OR c.caller_name LIKE :q ESCAPE '\\'
