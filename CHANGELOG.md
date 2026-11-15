@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: landing page redesign
+- The public page is rebuilt with its own stylesheet (`public/site.css`): a dark NAPA-blue hero with the shop's artwork, a yellow facts band, icon cards for what we carry and the specialty services, three steps for ordering online, a professionals section, hours and find-us cards, and the shop's story. Sticky header with a call button; two-column cards on phones. The truck photo no longer shows through the page.
+- `layout()` takes `bare: true` for pages that bring their own header and styles.
+
 ## Unreleased: design system (owner and manager)
 - Reports is now an interactive page (a Svelte island): switch the range without reloading, see calls per day against the period before, and each speed number beside what it was. Numbers come from `/reports.json`; without JavaScript the plain tables and range links still work.
 - Today shows managers and owners who is waiting longest (late calls in red) and what each person has open, plus the date.
