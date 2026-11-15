@@ -8,4 +8,6 @@
 - Items catalog; add mid-call, link to calls.
 - Shared queue with live updates; Today dashboard; reports with CSV; activity log.
 - Staff sign-in, invitations, roles and password changes through the Potomac kit.
+- Calls where a coworker asked you for help are shown first on Today.
+- `npm run backup` (consistent live copy, newest 14 kept), Railway config and deployment notes.
 - SQLite storage with checksummed numbered migrations; Zubra-rendered pages that work without JavaScript.

@@ -46,7 +46,7 @@ migrations/   numbered SQL; the only way the schema changes.
 vendor/       the kit's modules and Zubra UI's components, copied at recorded commits (vendor/MANIFEST.md).
 ```
 
-The decisions are in [`docs/`](docs/): [stack](docs/decisions/0001-stack.md), [domain](docs/domain.md), [authorization](docs/authorization.md).
+The decisions are in [`docs/`](docs/): [stack](docs/decisions/0001-stack.md), [domain](docs/domain.md), [authorization](docs/authorization.md), [deploying and backups](docs/deploy.md).
 
 ## Not in this version
 

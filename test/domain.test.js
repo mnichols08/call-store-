@@ -98,3 +98,20 @@ test('migrations run once, in order, and a changed one is refused', async () => 
   assert.throws(() => migrate(db, dir));
   assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'c'").get(), undefined, 'a failed migration leaves nothing behind');
 });
+
+test('a backup is a real, complete copy, and old ones are pruned', async () => {
+  const { mkdtempSync, existsSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { DatabaseSync } = await import('node:sqlite');
+  const { dailyBackup } = await import('../src/infra/backup.js');
+  const db = openDatabase(':memory:');
+  migrate(db);
+  db.prepare("INSERT INTO items (sku, name, created_by, created_at, updated_at) VALUES ('A', 'Kept', 'x', 1, 1)").run();
+  const dir = mkdtempSync(join(tmpdir(), 'bak-'));
+  for (const day of ['2026-11-10', '2026-11-11', '2026-11-12']) dailyBackup(db, dir, { now: new Date(`${day}T12:00:00Z`), keep: 2 });
+  assert.equal(existsSync(join(dir, 'call-store-2026-11-10.db')), false);
+  const copy = new DatabaseSync(join(dir, 'call-store-2026-11-12.db'));
+  assert.equal(copy.prepare('SELECT name FROM items').get().name, 'Kept');
+  copy.close();
+});
