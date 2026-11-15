@@ -43,28 +43,35 @@ export function layout({ title, who, active = '', body, notice = {}, business, l
         .map(([href, label, key]) => `<a href="${href}"${key === active ? ' aria-current="page"' : ''}>${esc(label)}</a>`).join('')}
         ${who.roles.includes('owner') ? `<a href="/staff/people"${active === 'people' ? ' aria-current="page"' : ''}>People</a>` : ''}</nav>`
     : '';
+  const toggle = '<button type="button" class="icon-btn theme-toggle" aria-label="Switch theme">🌙</button>';
   const account = who
     ? `<div class="account"><form method="post" action="/calls"><button class="new-call" type="submit" title="New call (N)">New call</button></form>
         <a href="/staff/password" class="who" title="Change password"><span>${esc(who.name || who.email)}</span><small>${esc(who.roles.join(', '))}</small></a>
-        <form method="post" action="/staff/sign-out"><button class="link" type="submit">Sign out</button></form></div>`
-    : '';
+        <form method="post" action="/staff/sign-out"><button class="link" type="submit">Sign out</button></form>${toggle}</div>`
+    : `<div class="account">${toggle}</div>`;
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0b132b">
 <title>${esc(title)} · ${esc(business)}</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="/assets/zubra-ui-theme.css">
 <link rel="stylesheet" href="/assets/app.css">
+<script src="/assets/theme.js"></script>
 </head>
 <body${live ? ' data-live' : ''}>
+<div id="bg-layer" aria-hidden="true"></div>
 <a class="skip" href="#main">Skip to content</a>
 <header class="bar"><a class="brand" href="/">${esc(business)}<small>Call desk</small></a>${nav}${account}</header>
 <main id="main">
 ${notice.problem ? `<p class="flash problem" role="alert">${esc(notice.problem)}</p>` : ''}${notice.done ? `<p class="flash done" role="status">${esc(notice.done)}</p>` : ''}
 ${body}
 </main>
+<span id="net-pill" role="status" hidden><span class="dot"></span>Offline. Changes save when you’re back.</span>
+<script src="/assets/background.js" defer></script><script src="/assets/network.js" defer></script>
 ${who ? '<script src="/assets/shortcuts.js" defer></script>' : ''}${live ? '<script src="/assets/live.js" defer></script>' : ''}${script}
 </body>
 </html>`;

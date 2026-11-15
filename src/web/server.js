@@ -22,7 +22,7 @@ import { ROLES } from '../domain/permissions.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(here, '..', '..', 'public');
-const TYPES = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
+const TYPES = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.webp': 'image/webp' };
 const MAX_BODY = 256 * 1024;
 
 export async function createWeb({ db, config, now = Date.now }) {
@@ -114,7 +114,7 @@ export async function createWeb({ db, config, now = Date.now }) {
 
   async function asset(url, res) {
     const name = url.pathname.slice('/assets/'.length);
-    if (!/^[a-z0-9-]+\.(css|js)$/.test(name)) return false;
+    if (!/^[a-z0-9-]+\.(css|js|webp)$/.test(name)) return false;
     try {
       const data = await readFile(join(PUBLIC, name));
       res.writeHead(200, { 'content-type': TYPES[extname(name)], 'cache-control': config.production ? 'public, max-age=3600' : 'no-cache', 'x-content-type-options': 'nosniff' });
