@@ -9,6 +9,8 @@ export const SHOP = Object.freeze({
   email: 'southernauto@live.com',
   address: { street: '1450 Maryland Highway', city: 'Mt. Lake Park', state: 'MD', zip: '21550' },
   directions: 'On Maryland Route 135, easy to reach from Maryland and West Virginia.',
+  // Parts are delivered across the service areas below. Set to false if that stops being true.
+  delivers: true,
   napaOnline: 'https://www.napaonline.com/',
   afterHours: 'Browse 24/7 on NAPA Online and choose “Shop This Store” to see what’s available at our Oakland location. We often have access to more parts, and better pricing, than shows online, so for the best selection call us or stop in during store hours.',
   // Naming other businesses on a public page is the owner’s call: turn this on once they’ve agreed.

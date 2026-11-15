@@ -5,6 +5,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { can } from '../domain/permissions.js';
 import { clip } from '../domain/text.js';
 import { SERVICE_TYPES } from '../domain/measure.js';
+import { saveDelivery } from './delivery.js';
+import { cleanDelivery } from '../domain/delivery.js';
 import { UPDATE_KINDS, STAFF_KINDS, cleanEmail, currentKind, isOpenForCustomer } from '../domain/portal.js';
 
 const SYSTEM = Object.freeze({ email: 'portal', roles: ['staff'] });
@@ -332,13 +334,15 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
       const kind = currentKind(updates, c.status);
       const app = JSON.parse(c.application || '{}');
       const view = details.publicView(id);
-      return { ok: true, request: { id, request: c.request, partNumbers: c.part_numbers, quantity: c.quantity, vehicle: [app.year, app.make, app.model, app.engine, app.drivetrain].filter(Boolean).join(' '), vin: app.vin ?? '', createdAt: c.created_at, kind, label: UPDATE_KINDS[kind].label, open: isOpenForCustomer(kind, c.status), closed: ['resolved', 'closed'].includes(c.status), updates, details: view.details, photos: view.photos } };
+      return { ok: true, request: { id, request: c.request, partNumbers: c.part_numbers, quantity: c.quantity, vehicle: [app.year, app.make, app.model, app.engine, app.drivetrain].filter(Boolean).join(' '), vin: app.vin ?? '', createdAt: c.created_at, kind, label: UPDATE_KINDS[kind].label, open: isOpenForCustomer(kind, c.status), closed: ['resolved', 'closed'].includes(c.status), updates, details: view.details, photos: view.photos, delivery: db.prepare('SELECT town, address, note, status, outside FROM call_delivery WHERE call_id = ?').get(id) ?? null } };
     },
     createRequest(acct, input) {
       const text = clip(String(input.request ?? '').trim(), 500);
       const parts = clip(String(input.partNumbers ?? '').trim(), 200);
       if (!text && !parts) return { error: 'empty' };
       if (db.prepare("SELECT COUNT(*) AS n FROM calls WHERE source = 'portal' AND portal_account = ? AND created_at > ?").get(acct.id, now() - 24 * HOUR).n >= PORTAL.requestsPerDay) return { error: 'slow-down' };
+      const deliver = input.fulfilment === 'deliver';
+      if (deliver && !cleanDelivery({ address: input.deliveryAddress }).ok) return { error: 'address' };
       const wants = { pickup: 'Will pick up', deliver: 'Wants it delivered' }[input.fulfilment];
       const needed = { today: 'Needed today', week: 'Needed this week' }[input.needed];
       const job = SERVICE_TYPES().find((x) => x.key === input.service);
@@ -352,6 +356,7 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
       if (r.error) return r;
       db.prepare("UPDATE calls SET source = 'portal', portal_account = ?, created_by = 'portal' WHERE id = ?").run(acct.id, r.id);
       db.prepare("INSERT INTO portal_updates (call_id, at, kind, message, account_id) VALUES (?, ?, 'received', '', ?)").run(r.id, now(), acct.id);
+      if (deliver) saveDelivery({ db, now }, r.id, { town: input.deliveryTown, address: input.deliveryAddress, note: input.deliveryNote }, `portal:${acct.email}`);
       audit.record(`portal:${acct.email}`, 'portal.request', `call:${r.id}`, {});
       changed({ type: 'call', id: r.id });
       return { ok: true, id: r.id, service: job?.key ?? '' };

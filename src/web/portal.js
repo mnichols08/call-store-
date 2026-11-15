@@ -10,6 +10,7 @@ import { LIMITS } from '../app/details.js';
 import { PORTAL } from '../app/portal.js';
 import { SHOP } from '../domain/shop.js';
 import { SERVICE_TYPES } from '../domain/measure.js';
+import { STATUS_LABEL as DELIVERY_LABEL, deliveryTowns } from '../domain/delivery.js';
 
 const COOKIE = 'cs_portal';
 const SAYS = {
@@ -18,6 +19,7 @@ const SAYS = {
   'name': 'Please add your name.',
   'slow-down': 'Please wait a little and try again.',
   'empty': 'Please say what you need.',
+  'address': 'Tell us where to deliver it, or choose pickup.',
   'link-closed': 'This request is finished, so it can’t take more.',
   'measure': 'A measurement doesn’t look right. Use numbers like 25, 25.4 or 1/2.',
   'missing': 'We couldn’t find that.',
@@ -93,6 +95,10 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
         <div class="two"><label>Quantity<input name="quantity" inputmode="numeric" maxlength="4" value="1"></label>
         <label>When<select name="needed"><option value="">No rush</option><option value="week">This week</option><option value="today">Today</option></select></label></div>
         <fieldset class="units"><legend>Getting it</legend><label><input type="radio" name="fulfilment" value="pickup" checked> I’ll pick it up</label><label><input type="radio" name="fulfilment" value="deliver"> Deliver it</label></fieldset>
+        <details><summary>If you want it delivered</summary><p class="muted">We deliver around ${esc(deliveryTowns().slice(0, 4).map((t) => t.town).join(', '))} and the rest of our area. Somewhere else? Enter it and we’ll check.</p>
+          <label>Town<select name="deliveryTown"><option value="">Choose a town…</option>${deliveryTowns().map((t) => `<option value="${esc(t.value)}">${esc(t.value)}</option>`).join('')}<option value="Somewhere else">Somewhere else</option></select></label>
+          <label>Address<textarea name="deliveryAddress" rows="2" maxlength="200"></textarea></label>
+          <label>Where to leave it, or who to ask for<input name="deliveryNote" maxlength="200"></label></details>
         <details><summary>Vehicle or machine</summary><div class="two">
           <label>Year<input name="year" inputmode="numeric" maxlength="4"></label><label>Make<input name="make" maxlength="60"></label>
           <label>Model<input name="model" maxlength="80"></label><label>Engine<input name="engine" maxlength="80"></label></div>
@@ -108,6 +114,7 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
     const timeline = r.updates.map((u) => `<li><strong>${esc(UPDATE_KINDS[u.kind]?.label ?? u.kind)}</strong> <span class="muted">${esc(stamp(u.at))}${u.who ? ` · ${esc(u.who)}` : ''}</span>${u.message ? `<br>${esc(u.message)}` : ''}</li>`).reverse().join('');
     return `<div class="head"><h1>${esc(r.request || r.partNumbers || 'Request')}</h1><a class="btn" href="/portal">Back</a></div>${flash(q)}
       <section class="panel stack"><p>${chip(r.kind, r.label)}</p>${r.partNumbers ? `<p>Part numbers: ${esc(r.partNumbers)}</p>` : ''}${r.vehicle ? `<p>${esc(r.vehicle)}</p>` : ''}</section>
+      ${r.delivery ? `<section class="panel stack"><h2>Delivery</h2><p>${chip(r.delivery.status === 'delivered' ? 'done' : r.delivery.status === 'out' ? 'on-the-way' : 'looking', DELIVERY_LABEL[r.delivery.status])}</p><p>${esc(r.delivery.address)}${r.delivery.town ? `<br>${esc(r.delivery.town)}` : ''}</p>${r.delivery.outside && r.delivery.status === 'requested' ? '<p class="muted">That’s outside our usual delivery area, so we’ll call to confirm.</p>' : ''}</section>` : ''}
       <section class="panel stack"><h2>Updates</h2><ul class="list">${timeline}</ul></section>
       ${r.closed ? '' : `<section class="panel stack"><h2>Add a note</h2><form method="post" action="${base}/note" class="stack"><label>Message<textarea name="text" rows="2" maxlength="400" required></textarea></label><button class="btn">Send note</button></form></section>
       <section class="panel stack"><h2>Measurements</h2>${measureForm({ action: `${base}/details`, type, unit: saved?.unit, values: saved?.values, note: saved?.note ?? '', baseUrl: base, submit: 'Send measurements' })}</section>
@@ -257,7 +264,7 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
       if (p === '/portal/requests/new' && !posting) return page(res, nonce, 200, 'New request', newRequest(acct, q), { acct }), true;
       if (p === '/portal/requests' && posting) {
         const f = (k) => form.get(k) ?? '';
-        const r = app.portal.createRequest(acct, { request: f('request'), partNumbers: f('partNumbers'), quantity: f('quantity'), needed: f('needed'), fulfilment: f('fulfilment'), service: f('service'), year: f('year'), make: f('make'), model: f('model'), engine: f('engine'), vin: f('vin') });
+        const r = app.portal.createRequest(acct, { request: f('request'), partNumbers: f('partNumbers'), quantity: f('quantity'), needed: f('needed'), fulfilment: f('fulfilment'), deliveryTown: f('deliveryTown'), deliveryAddress: f('deliveryAddress'), deliveryNote: f('deliveryNote'), service: f('service'), year: f('year'), make: f('make'), model: f('model'), engine: f('engine'), vin: f('vin') });
         if (r.error) return fail(res, '/portal/requests/new', r), true;
         go(res, `/portal/requests/${r.id}?ok=sent${r.service ? `&type=${r.service}` : ''}`);
         return true;
