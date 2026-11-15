@@ -1,0 +1,83 @@
+/* What customers see: the portal and the private links. The same look as the public page (navy header with the
+   badge, yellow and blue, white cards on pale blue), laid over the shared form and layout rules in app.css.
+   Always light, so a form is readable in a shop or a truck cab. */
+body.customer {
+  --cs-bg: #f4f6fb; --cs-fg: #0e1424; --cs-muted: #4d566b; --cs-accent: #1553c7;
+  --cs-card: #fff; --cs-border: #cfd7ea; --cs-btn: #e8edf9; --cs-input: #fff;
+  --cs-primary: #0b3a8c; --cs-primary-fg: #fff; --cs-danger: #b91c1c; --cs-ok: #047857; --cs-warn: #b45309;
+  --cs-shadow: 0 10px 30px rgba(10, 22, 51, .08); --cs-hover: rgba(21, 83, 199, .08);
+  --background: #fff; --foreground: #0e1424; --card: #fff; --card-foreground: #0e1424;
+  --popover: #fff; --popover-foreground: #0e1424; --primary: #0b3a8c; --primary-foreground: #fff;
+  --secondary: #e8edf9; --secondary-foreground: #0e1424; --muted: #eef2fb; --muted-foreground: #4d566b;
+  --accent: #e8edf9; --accent-foreground: #0e1424; --destructive: #b91c1c; --border: #cfd7ea; --input: #cfd7ea; --ring: #1553c7;
+  color-scheme: light; background: #f4f6fb; color: #0e1424;
+  --navy: #0a1633; --yellow: #ffc20e;
+}
+
+/* header */
+.ctop { position: sticky; top: 0; z-index: 50; background: rgba(10, 22, 51, .97); border-bottom: 1px solid rgba(255,255,255,.08); }
+.cwrap { width: min(72rem, 100% - 2rem); margin-inline: auto; }
+.cbar { display: flex; align-items: center; gap: 1rem; min-height: 4.5rem; flex-wrap: wrap; padding-block: .35rem; }
+.customer .logo { display: flex; align-items: center; gap: .7rem; text-decoration: none; color: #fff; margin-right: auto; }
+.customer .mark { width: 3rem; height: 3.25rem; flex: none; filter: drop-shadow(0 3px 8px rgba(255,194,14,.35)); }
+.customer .word { display: grid; line-height: 1; }
+.customer .word b { font: 900 italic 1.35rem/1 ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif; text-transform: uppercase; letter-spacing: .03em; }
+.customer .word i { margin-top: .2rem; font: 800 normal .7rem/1 ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif; letter-spacing: .22em; text-transform: uppercase; color: var(--yellow); }
+.cbar nav { display: flex; gap: .15rem; flex-wrap: wrap; }
+.cbar nav a { white-space: nowrap; padding: .5rem .8rem; border-radius: 8px; color: #d7def0; text-decoration: none; font-weight: 600; font-size: .95rem; border: 0; }
+.cbar nav a:hover { background: rgba(255,255,255,.1); color: #fff; }
+.cbar .account { color: #d7def0; }
+.cbar .account .who small { color: #9fb0d6; }
+.cbar .account .link, .cbar .account button.link { color: #fff; }
+.customer .theme-toggle { display: none; }
+.customer main { max-width: 72rem; padding-top: 1.75rem; }
+
+/* headings and cards */
+.customer h1 { font: 900 clamp(1.6rem, 3.5vw, 2.3rem)/1.1 ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif; text-transform: uppercase; letter-spacing: .01em; }
+.customer .panel { border-radius: 16px; border: 1px solid #dde3f0; background: #fff; backdrop-filter: none; box-shadow: 0 10px 30px rgba(10, 22, 51, .07); }
+.customer .panel h2 { font-size: 1.1rem; font-weight: 800; }
+.customer .muted { color: var(--cs-muted); }
+.customer .flash { background: #fff; backdrop-filter: none; border-radius: 12px; }
+.customer .flash.done { border-color: #34d399; background: #ecfdf5; }
+.customer .flash.problem { border-color: #f87171; background: #fef2f2; }
+
+/* controls */
+.customer input[type='search'], .customer input:not([type]), .customer input[type='text'], .customer input[type='email'], .customer input[type='number'], .customer input[type='tel'], .customer select, .customer textarea {
+  background: #fff; color: #0e1424; border: 2px solid #cfd7ea; border-radius: 10px; min-height: 44px;
+}
+.customer input:focus, .customer select:focus, .customer textarea:focus { border-color: #1553c7; outline: 3px solid rgba(255,194,14,.7); outline-offset: 1px; }
+.customer label { color: #0e1424; }
+.customer .btn, .customer button:not(.link):not(.new-call):not(.icon-btn):not(.x1):not(.x2) {
+  background: #e8edf9; color: #0e1424; border: 2px solid #cfd7ea; border-radius: 10px; font-weight: 700; box-shadow: none; min-height: 44px;
+}
+.customer .btn:hover, .customer button:not(.link):not(.new-call):not(.icon-btn):not(.x1):not(.x2):hover { background: #dbe4ff; filter: none; box-shadow: 0 4px 12px rgba(10,22,51,.12); }
+.customer .btn.primary, .customer button.primary:not(.link):not(.new-call):not(.icon-btn):not(.x1):not(.x2),
+.customer form > button:not([type='button']):not(.link):not(.icon-btn):not(.x1):not(.x2) {
+  background: #0b3a8c; color: #fff; border-color: #0b3a8c;
+}
+.customer .btn.primary:hover, .customer button.primary:not(.link):not(.new-call):not(.icon-btn):not(.x1):not(.x2):hover,
+.customer form > button:not([type='button']):not(.link):not(.icon-btn):not(.x1):not(.x2):hover { background: #1553c7; }
+.customer main .link { color: #1553c7; }
+
+.customer .panel form > label, .customer .panel form label.field { display: grid; gap: .3rem; font-weight: 600; }
+.customer .panel form textarea { width: 100%; min-height: 6rem; }
+
+.customer fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.customer fieldset legend, .customer .panel form fieldset > span { font-weight: 600; margin-bottom: .3rem; padding: 0; }
+.customer fieldset label { display: inline-flex; flex-direction: row; align-items: center; gap: .5rem; margin-right: 1.2rem; min-height: 44px; }
+.customer input[type='radio'], .customer input[type='checkbox'] { width: 1.3rem; height: 1.3rem; accent-color: #0b3a8c; min-height: 0; }
+
+/* status chips */
+.customer .chip { background: #eef2fb; border: 1px solid #cfd7ea; color: #0e1424; font-weight: 700; }
+.customer .chip.status-ready, .customer .chip.status-on-the-way, .customer .chip.status-done, .customer .chip.status-confirmed, .customer .chip.status-available { background: #ecfdf5; border-color: #34d399; color: #065f46; outline: 0; }
+.customer .chip.status-need-info, .customer .chip.status-unavailable { background: #fff6d6; border-color: #ffc20e; color: #6b4a00; outline: 0; }
+.customer table.grid { border-radius: 12px; border-color: #dde3f0; background: #fff; }
+
+@media (max-width: 640px) {
+  .customer .word b { font-size: 1.15rem; }
+  .customer .word i { font-size: .6rem; letter-spacing: .16em; }
+  .customer .mark { width: 2.5rem; height: 2.7rem; }
+  .cbar { gap: .5rem; }
+  .cbar nav { order: 3; width: 100%; overflow-x: auto; flex-wrap: nowrap; padding-bottom: .25rem; }
+  .cbar nav a { padding: .5rem .55rem; font-size: .88rem; }
+}

@@ -1,7 +1,7 @@
 // The shop's public page. Southern Auto Supply has no other website, so this is it: who we are, when
 // we're open, where to find us, and a way in to order parts online.
 import { esc } from './html.js';
-import { layout } from './ui.js';
+import { layout, logoHtml } from './ui.js';
 import { SHOP } from '../domain/shop.js';
 import { openingSpec, weekTable } from '../domain/hours.js';
 
@@ -65,7 +65,7 @@ export function createSite({ config, app, now, shop = SHOP }) {
     return `
 <header class="top">
   <div class="wrap bar">
-    <a class="logo" href="/" aria-label="${esc(shop.name)}, home"><svg class="mark" viewBox="0 0 48 52" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd84a"/><stop offset="1" stop-color="#ffb300"/></linearGradient><clipPath id="lc"><path d="M24 2l19 6v17c0 13-8 22-19 25C13 47 5 38 5 25V8z"/></clipPath></defs><path d="M24 2l19 6v17c0 13-8 22-19 25C13 47 5 38 5 25V8z" fill="url(#lg)"/><g clip-path="url(#lc)"><path d="M0 38l48-10v7L0 45z" fill="#0b3a8c"/></g><path d="M24 2l19 6v17c0 13-8 22-19 25C13 47 5 38 5 25V8z" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/><text x="24" y="33" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-style="italic" font-size="32" fill="#0a1633" stroke="#fff" stroke-width=".8" paint-order="stroke">S</text></svg><span class="word"><b>Southern</b><i>Auto Supply</i></span></a>
+    ${logoHtml(shop.name)}
     <nav aria-label="Main"><a href="#parts">Parts</a><a href="#online">Order online</a><a href="#hours">Hours</a><a href="#find">Find us</a></nav>
     <a class="btn yellow" href="${tel(shop)}">Call<span class="num">&nbsp;${esc(shop.phone)}</span></a>
   </div>
