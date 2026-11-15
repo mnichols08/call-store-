@@ -6,6 +6,7 @@ import { can } from '../../domain/permissions.js';
 import { formatPhone } from '../../domain/phone.js';
 import { detailsPanel } from './details.js';
 import { tierBadge } from './customers.js';
+import { deliveryPanel } from './delivery.js';
 import { callPortalPanel } from './portal.js';
 import { suggestionsPanel } from './watch.js';
 import { matchData, partsPanel, vehiclePanels } from './vehicles.js';
@@ -213,6 +214,7 @@ async function workspace(ctx, got) {
 <div class="workspace">
 <div class="main-col">
   ${callPortalPanel(ctx, got, closed)}
+  ${deliveryPanel(ctx, got, closed)}
   <section class="panel"><h2>Caller</h2>${lookup}</section>
   ${vehiclePanel}
   <form method="post" action="/calls/${call.id}/save" id="call-form" data-call="${call.id}" data-me="${esc(who.email)}" data-revision="${call.revision}" autocomplete="off">

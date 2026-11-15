@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased: delivery
+- Deliveries: customers ask for it on a web request (address required), staff add it to any call, move it ready, out, delivered, and customers are told. Deliveries list by town and a printable driver sheet. Towns outside the service area are flagged, not refused. See docs/delivery.md.
+
 ## Unreleased: account types and counter card
 - Customers are retail, pro or fleet: a badge, a list filter, and a `Type` column on import.
 - A printable counter card with a QR code to online ordering, plus the shop's hours.

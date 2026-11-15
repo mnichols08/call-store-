@@ -12,6 +12,7 @@ import { createNotices } from '../../vendor/kit/notice/index.js';
 import { watchRoutes } from './pages/watch.js';
 import { hoursRoutes } from './pages/hours.js';
 import { ordersRoutes } from './pages/orders.js';
+import { deliveryRoutes } from './pages/delivery.js';
 import { detailsRoutes } from './pages/details.js';
 import { createCustomerPages } from './customer.js';
 import { createPortalPages } from './portal.js';
@@ -96,6 +97,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   watchRoutes(router);
   hoursRoutes(router);
   ordersRoutes(router);
+  deliveryRoutes(router);
   portalRoutes(router);
 
   const customer = createCustomerPages({ app, config, zubra, now });
