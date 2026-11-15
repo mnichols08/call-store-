@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased: part helper
+- Customers describe a part on their private link or portal request with a guided page (a small Svelte island, the first build step in the project): photos with upload status, an optional AI look that suggests the kind of part and reads printed or stamped numbers, and size fields with live checking and inch/mm conversion. The AI only suggests; sizes it did not read off the part are dropped, and the customer checks everything before sending. See docs/part-helper.md.
+
 ## Unreleased: design system (counter screens)
 - Call screen: the caller and the request come first, with the work tools (actions, vehicle lookup, parts finder, items) in a sticky right-hand column and the timeline folded away. The calls queue marks help requests and high-priority calls with a colored edge. Form labels and file pickers are tidied.
 

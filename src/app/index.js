@@ -30,7 +30,7 @@ export function createApp({ db, now = Date.now, changed = () => {}, fetcher = gl
   const nudges = createNudges(shared);
   const parts = createParts({ ...shared, ai, limits, log });
   const calls = createCalls(shared);
-  const details = createDetails({ ...shared, nudges });
+  const details = createDetails({ ...shared, nudges, ai, log });
   const mailer = mailOptions.send ? mailOptions : createMailer({ db, now, fetcher, log, ...mailOptions });
   const customers = createCustomers(shared);
   const portal = createPortal({ ...shared, details, calls, mailer, business, nudges, customers });

@@ -2,7 +2,7 @@
 // (a QR code or an emailed link), confirm their email, and from then on sign in with a one-time link.
 import { esc, ago } from './html.js';
 import { layout } from './ui.js';
-import { measureForm, photoGrid } from './pages/details.js';
+import { partHelper } from './pages/details.js';
 import { qrSvg } from '../infra/qr.js';
 import { createLimiter } from './limiter.js';
 import { UPDATE_KINDS } from '../domain/portal.js';
@@ -116,11 +116,8 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
       <section class="panel stack"><p>${chip(r.kind, r.label)}</p>${r.partNumbers ? `<p>Part numbers: ${esc(r.partNumbers)}</p>` : ''}${r.vehicle ? `<p>${esc(r.vehicle)}</p>` : ''}</section>
       ${r.delivery ? `<section class="panel stack"><h2>Delivery</h2><p>${chip(r.delivery.status === 'delivered' ? 'done' : r.delivery.status === 'out' ? 'on-the-way' : 'looking', DELIVERY_LABEL[r.delivery.status])}</p><p>${esc(r.delivery.address)}${r.delivery.town ? `<br>${esc(r.delivery.town)}` : ''}</p>${r.delivery.outside && r.delivery.status === 'requested' ? '<p class="muted">That’s outside our usual delivery area, so we’ll call to confirm.</p>' : ''}</section>` : ''}
       <section class="panel stack"><h2>Updates</h2><ul class="list">${timeline}</ul></section>
-      ${r.closed ? '' : `<section class="panel stack"><h2>Add a note</h2><form method="post" action="${base}/note" class="stack"><label>Message<textarea name="text" rows="2" maxlength="400" required></textarea></label><button class="btn">Send note</button></form></section>
-      <section class="panel stack"><h2>Measurements</h2>${measureForm({ action: `${base}/details`, type, unit: saved?.unit, values: saved?.values, note: saved?.note ?? '', baseUrl: base, submit: 'Send measurements' })}</section>
-      <section class="panel stack"><h2>Photos</h2><p class="muted">The part itself, numbers stamped on it, and the old part next to a ruler. Please keep people and license plates out of the picture.</p>
-      ${photoGrid(r.photos, { src: (p) => `${base}/photos/${p.id}` })}
-      ${r.photos.length < LIMITS.photos ? `<label class="upload">Add a photo<input type="file" accept="image/*" capture="environment" data-upload="${base}/photo" data-after="reload" multiple></label><p class="muted" data-upload-status role="status"></p>` : '<p class="muted">That’s the most photos we can take.</p>'}</section>`}`;
+      ${r.closed ? '' : `<section class="panel stack"><h2>Add a note</h2><form method="post" action="${base}/note" class="stack"><label>Message<textarea name="text" rows="2" maxlength="400" required></textarea></label><button class="btn">Send note</button></form></section>`}
+      ${partHelper({ base, assist: app.details.assistEnabled(), photos: r.photos.map((p) => ({ id: p.id, src: `${base}/photos/${p.id}` })), type, unit: saved?.unit, values: saved?.values, note: saved?.note ?? '', saved: q.get('ok') === 'saved' })}`;
   }
 
   function teamPage(acct, q, req, made = null) {
@@ -148,7 +145,7 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
       const p = url.pathname.replace(/\/$/, '') || '/';
       const m = /^\/join\/([A-Za-z0-9_-]{20,80})$/.exec(p);
       const verify = /^\/portal\/verify\/([A-Za-z0-9_-]{20,80})$/.exec(p);
-      const rq = /^\/portal\/requests\/(\d+)(?:\/(note|details|photo|photos\/(\d+)))?$/.exec(p);
+      const rq = /^\/portal\/requests\/(\d+)(?:\/(note|details|photo|assist|photos\/(\d+)))?$/.exec(p);
       const removal = /^\/portal\/team\/(\d+)\/remove$/.exec(p);
       const hello = /^\/hello\/([A-Za-z0-9_-]{20,80})$/.exec(p);
       const badge = /^\/badge\/([A-Za-z0-9_-]{20,80})$/.exec(p);
@@ -310,8 +307,15 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
           json(res, r.error ? 400 : 200, r);
           return true;
         }
+        if (posting && action === 'assist') {
+          if (!uploads.take(ip)) return json(res, 429, { error: 'slow-down' }), true;
+          const r = await app.details.assist(id);
+          json(res, r.error ? (r.error === 'slow-down' ? 429 : 400) : 200, r);
+          return true;
+        }
         if (posting && action === 'details') {
           const r = app.details.saveAsCustomer(id, { type: form.get('type') ?? '', unit: form.get('unit') ?? 'mm', note: form.get('note') ?? '', get: (k) => form.get(k) ?? '' });
+          if (req.headers.accept?.includes('application/json')) return json(res, r.ok ? 200 : 400, r.ok ? { ok: true } : { error: r.error, fields: r.fields ?? [] }), true;
           go(res, r.ok ? `${base}?ok=saved&type=${encodeURIComponent(form.get('type') ?? '')}` : `${base}?type=${encodeURIComponent(form.get('type') ?? '')}&problem=${SAYS[r.error] ? r.error : 'measure'}`);
           return true;
         }

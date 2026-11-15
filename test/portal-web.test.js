@@ -276,3 +276,39 @@ test('delivery: the form asks for it, a missing address is refused, and staff pl
   assert.match((await dee.me(`/portal/requests/${id}`)).text, /On the way/, 'and it shows in the updates');
   assert.equal((await browser()('/deliveries')).location, '/staff/sign-in');
 });
+
+// ---- the part helper's two endpoints, through the real server
+const seg = (marker, body) => Buffer.concat([Buffer.from([0xff, marker, (body.length + 2) >> 8, (body.length + 2) & 255]), body]);
+const tinyJpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8]), seg(0xe0, Buffer.from('JFIF\0\x01\x01\0\0\x01\0\x01\0\0')), seg(0xc0, Buffer.from([8, 0, 1, 0, 1, 1, 1, 0x11, 0])), seg(0xda, Buffer.from([1, 1, 0, 0, 0x3f, 0])), Buffer.from([0x12, 0x34, 0xff, 0x00, 0x56]), Buffer.from([0xff, 0xd9])]);
+async function helperServer(ai) {
+  const hdb = openDatabase(':memory:');
+  migrate(hdb);
+  const w = await createWeb({ db: hdb, config, fetcher: async () => { throw new Error('no network'); }, ai });
+  await new Promise((resolve) => w.server.listen(0, '127.0.0.1', resolve));
+  const callId = w.app.calls.create(staffUser).id;
+  return { app: w.app, callId, photo: tinyJpeg(), origin: `http://127.0.0.1:${w.server.address().port}`, close: async () => { w.server.closeAllConnections?.(); w.server.close(); } };
+}
+test('the helper’s assist and JSON details endpoints work for a private link and refuse a bad one', async () => {
+  const ai = { enabled: true, suggest: async () => ({ candidates: [] }), readSheet: async () => ({}), readPart: async () => ({ reading: { type: 'hose', confidence: 'low', values: { id: { value: '1/2', source: 'printed' }, length: { value: '30', source: 'guess' } } }, usage: {} }) };
+  const h = await helperServer(ai);
+  const token = h.app.details.createLink(staffUser, h.callId).token;
+  const origin = { origin: h.origin };
+  const post = (path, init = {}) => fetch(`${h.origin}${path}`, { method: 'POST', headers: { ...origin, accept: 'application/json', ...(init.headers ?? {}) }, body: init.body });
+  assert.equal((await post(`/d/${token}/assist`)).status, 400, 'no photo yet');
+  assert.equal(h.app.details.customerPhoto(token, h.photo).ok, true);
+  const r = await post(`/d/${token}/assist`);
+  assert.equal(r.status, 200);
+  const body = await r.json();
+  assert.equal(body.suggestion.type, 'hose');
+  assert.deepEqual(body.suggestion.values, { id: '1/2' });
+  const page = await (await fetch(`${h.origin}/d/${token}`)).text();
+  assert.match(page, /id="part-helper"/);
+  assert.match(page, /\/assets\/islands\/part-helper\.js/);
+  const saved = await post(`/d/${token}/details`, { headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ type: 'hose', unit: 'in', f_id: '1/2', f_length: '30' }) });
+  assert.deepEqual(await saved.json(), { ok: true });
+  const bad = await post(`/d/${token}/details`, { headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ type: 'hose', unit: 'in', f_id: 'lots' }) });
+  assert.equal(bad.status, 400);
+  assert.equal((await post(`/d/${'x'.repeat(30)}/assist`)).status, 404);
+  assert.equal((await fetch(`${h.origin}/assets/islands/part-helper.js`)).status, 200);
+  await h.close();
+});

@@ -22,6 +22,24 @@ export function measureForm({ action, type, unit, values = {}, note = '', baseUr
     <label>Anything else (numbers stamped on it, where it goes)<textarea name="note" rows="2" maxlength="${LIMITS.note}">${esc(note)}</textarea></label>${extra}<button class="btn primary">${esc(submit)}</button></form>`;
 }
 
+/**
+ * The customer's part helper (a small Svelte island). The plain form and upload box inside are what a
+ * browser without JavaScript sees; the island replaces them. `photos` is `[{ id, src }]` the customer can already see.
+ */
+export function partHelper({ base, assist, photos = [], count = photos.length, type = '', unit = 'mm', values = {}, note = '', saved = false, problem = false }) {
+  const flat = Object.fromEntries(Object.entries(values ?? {}).map(([k, v]) => [k, v?.text ?? '']));
+  const config = { base, assist: Boolean(assist), limit: LIMITS.photos, count, photos, initial: { type, unit, values: flat, note }, saved };
+  const upload = count < LIMITS.photos
+    ? `<label class="upload">Add a photo<input type="file" accept="image/*" capture="environment" data-upload="${base}/photo" data-after="reload" multiple></label><p class="muted" data-upload-status role="status"></p>`
+    : '<p class="muted">That’s the most photos we can take.</p>';
+  return `<link rel="stylesheet" href="/assets/islands/part-helper.css">
+<div id="part-helper" data-config="${esc(JSON.stringify(config))}">
+<section class="panel stack"><h2>What is it?</h2>${measureForm({ action: `${base}/details`, type, unit, values, note, baseUrl: base, submit: 'Send measurements' })}</section>
+<section class="panel stack"><h2>Photos</h2><p class="muted">The part itself, any numbers stamped on it, and the old part next to a ruler. Please keep people and license plates out of the picture.</p>${photoGrid(photos, { src: (p) => p.src })}${upload}<p class="muted">${count} of ${LIMITS.photos} photos sent.</p></section>
+</div>
+<script src="/assets/islands/part-helper.js" type="module"></script>`;
+}
+
 export const photoGrid = (photos, { src, removeAction = null }) => (photos.length ? `<ul class="photos">${photos.map((p, i) => `<li><a href="${src(p)}" target="_blank" rel="noopener"><img src="${src(p)}" alt="Photo ${i + 1}${p.source === 'customer' ? ' from the customer' : ''}" loading="lazy"></a>
   ${removeAction ? `<form method="post" action="${removeAction(p)}"><button class="link" aria-label="Remove photo ${i + 1}">Remove</button></form>` : ''}</li>`).join('')}</ul>` : '');
 

@@ -14,7 +14,8 @@
     "seed": "node src/infra/seed-cli.js",
     "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
     "backup": "node src/infra/backup-cli.js",
-    "stress": "node --expose-gc stress/bench.js"
+    "stress": "node --expose-gc stress/bench.js",
+    "build:islands": "node scripts/build-islands.js"
   },
   "dependencies": {
     "@journey-to-code/symbology": "^0.2.0",
@@ -22,5 +23,10 @@
     "@zubra/runtime": "5.17.0",
     "@zubra/server": "5.17.0",
     "web-push": "3.6.7"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "esbuild-svelte": "^0.9.5",
+    "svelte": "^5.57.3"
   }
 }
