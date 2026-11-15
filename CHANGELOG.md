@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: account types and counter card
+- Customers are retail, pro or fleet: a badge, a list filter, and a `Type` column on import.
+- A printable counter card with a QR code to online ordering, plus the shop's hours.
+
 ## Unreleased: order notebook
 - Scan a photo of a page of the special-order notebook. The AI reads the date and the four columns; a person checks every line before anything is saved. Orders list with received and paid. See docs/orders.md.
 - Fix: an impossible date such as 2026-13-45 on the Hours page could raise an error; dates are now checked safely.

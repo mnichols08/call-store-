@@ -10,6 +10,16 @@ export const IMPORT_MAX_CHARS = 600_000;
 // Names that read as a business, so a new import row starts out as one. It only guesses; the customer page can change it.
 const BUSINESS = /\b(llc|inc|corp|corporation|co|company|farms?|enterprises?|construction|excavating|motors|garage|repair|services?|lumber|trucking|sons|supply|auto|body|collision|hardwoods|industries|contracting|logging)\b/i;
 
+export const TIERS = Object.freeze(['retail', 'pro', 'fleet']);
+/** "Pro", "Fleet account", "Commercial" and the like, as one of the three tiers; null when it says nothing usable. */
+export function tierOf(text) {
+  const t = String(text ?? '').trim().toLowerCase();
+  if (!t) return null;
+  if (/fleet/.test(t)) return 'fleet';
+  if (/^(pro|professional|commercial|shop|contractor|wholesale|mechanic|body ?shop)\b/.test(t)) return 'pro';
+  if (/^(retail|walk-?in|regular|customer|diy|personal)\b/.test(t)) return 'retail';
+  return null;
+}
 const clean = (value, max) => clip(String(value ?? '').trim(), max);
 const like = (text) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
@@ -37,9 +47,10 @@ export function createCustomers({ db, audit, now, changed }) {
     if (!name) return { error: 'name' };
     const kind = input.kind === 'organization' ? 'organization' : 'person';
     const account_no = clean(input.account_no, 40) || null;
+    const tier = TIERS.includes(input.tier) ? input.tier : 'retail';
     const parsed = cleanPhones(input.phones);
     if (parsed.error) return parsed;
-    return { name, kind, account_no, address: clean(input.address, 400), notes: clean(input.notes, 5000), phones: parsed.phones };
+    return { name, kind, tier, account_no, address: clean(input.address, 400), notes: clean(input.notes, 5000), phones: parsed.phones };
   }
 
   function writePhones(id, phones) {
@@ -60,8 +71,8 @@ export function createCustomers({ db, audit, now, changed }) {
       const at = now();
       const id = transaction(db, () => {
         const { lastInsertRowid } = db
-          .prepare('INSERT INTO customers (kind, name, account_no, address, notes, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-          .run(fields.kind, fields.name, fields.account_no, fields.address, fields.notes, who.email, at, at);
+          .prepare('INSERT INTO customers (kind, tier, name, account_no, address, notes, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(fields.kind, fields.tier, fields.name, fields.account_no, fields.address, fields.notes, who.email, at, at);
         writePhones(Number(lastInsertRowid), fields.phones);
         audit.record(who.email, 'customer.created', `customer:${lastInsertRowid}`, { name: fields.name });
         return Number(lastInsertRowid);
@@ -78,8 +89,8 @@ export function createCustomers({ db, audit, now, changed }) {
       if (fields.error) return fields;
       if (taken(fields.account_no, id)) return { error: 'account-taken' };
       transaction(db, () => {
-        db.prepare('UPDATE customers SET kind = ?, name = ?, account_no = ?, address = ?, notes = ?, updated_at = ? WHERE id = ?')
-          .run(fields.kind, fields.name, fields.account_no, fields.address, fields.notes, now(), id);
+        db.prepare('UPDATE customers SET kind = ?, tier = ?, name = ?, account_no = ?, address = ?, notes = ?, updated_at = ? WHERE id = ?')
+          .run(fields.kind, fields.tier, fields.name, fields.account_no, fields.address, fields.notes, now(), id);
         writePhones(id, fields.phones);
         audit.record(who.email, 'customer.updated', `customer:${id}`, { name: fields.name });
       });
@@ -128,20 +139,22 @@ export function createCustomers({ db, audit, now, changed }) {
       const body = table.slice(1);
       if (body.length > IMPORT_MAX_ROWS) return { error: 'too-many' };
 
-      const byAccount = new Map(db.prepare('SELECT id, name, account_no FROM customers WHERE account_no IS NOT NULL').all().map((r) => [r.account_no.toLowerCase(), r]));
+      const byAccount = new Map(db.prepare('SELECT id, name, account_no, tier FROM customers WHERE account_no IS NOT NULL').all().map((r) => [r.account_no.toLowerCase(), r]));
       const phoneOwners = new Map();
       for (const r of db.prepare('SELECT customer_id, digits FROM customer_phones').all()) {
         if (!phoneOwners.has(r.digits)) phoneOwners.set(r.digits, new Set());
         phoneOwners.get(r.digits).add(r.customer_id);
       }
-      const names = new Map(db.prepare('SELECT id, name, account_no FROM customers').all().map((r) => [r.id, r]));
+      const names = new Map(db.prepare('SELECT id, name, account_no, tier FROM customers').all().map((r) => [r.id, r]));
       const seen = new Set();
       const fresh = new Map(); // new customers without an account number, so one person listed twice is made once
       const rows = body.map((cells, i) => {
         const at = (key) => (key in cols ? clean(cells[cols[key]], key === 'notes' ? 5000 : 400) : '');
         const name = clean(at('name'), 160);
         const account = clean(at('id'), 40);
-        const row = { line: i + 2, name, account_no: account || null, phones: [], address: at('address'), notes: at('notes'), warnings: [] };
+        const written = at('tier');
+        const row = { line: i + 2, name, account_no: account || null, phones: [], address: at('address'), notes: at('notes'), tier: tierOf(written), warnings: [] };
+        if (written && !row.tier) row.warnings.push(`Type “${clean(written, 30)}” not recognised, left as retail`);
         if (!name) return { ...row, action: 'skip', why: 'No name' };
         const key = account.toLowerCase();
         if (account && seen.has(key)) return { ...row, action: 'skip', why: `Account ${account} appears earlier in the file` };
@@ -163,13 +176,14 @@ export function createCustomers({ db, audit, now, changed }) {
           const sig = row.phones.length && !account ? `${name.toLowerCase()}|${row.phones[0].digits}` : '';
           if (sig && fresh.has(sig)) return { ...row, action: 'skip', why: `Same as line ${fresh.get(sig)}` };
           if (sig) fresh.set(sig, row.line);
-          return { ...row, action: 'new', kind: BUSINESS.test(name) ? 'organization' : 'person' };
+          return { ...row, action: 'new', tier: row.tier ?? 'retail', kind: BUSINESS.test(name) ? 'organization' : 'person' };
         }
         const have = new Set(phonesOf.all(match.id).map((p) => digitsOf(p.phone)));
         const addPhones = row.phones.filter((p) => !have.has(p.digits));
         const changes = [];
         if (match.name !== name) changes.push(`name “${match.name}” becomes “${name}”`);
         if (account && !match.account_no) changes.push(`account number ${account}`);
+        if (row.tier && match.tier !== row.tier) changes.push(`type becomes ${row.tier}`);
         if (addPhones.length) changes.push(`adds ${addPhones.map((p) => p.phone).join(', ')}`);
         if (!changes.length) return { ...row, action: 'same', id: match.id };
         return { ...row, action: 'update', id: match.id, addPhones, changes };
@@ -184,14 +198,14 @@ export function createCustomers({ db, audit, now, changed }) {
       if (plan.error) return plan;
       const at = now();
       transaction(db, () => {
-        const insert = db.prepare('INSERT INTO customers (kind, name, account_no, address, notes, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        const insert = db.prepare('INSERT INTO customers (kind, tier, name, account_no, address, notes, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
         const addPhone = db.prepare('INSERT INTO customer_phones (customer_id, label, ext, phone, digits) VALUES (?, ?, ?, ?, ?)');
         for (const r of plan.rows) {
           if (r.action === 'new') {
-            const { lastInsertRowid } = insert.run(r.kind, r.name, r.account_no, r.address, r.notes, who.email, at, at);
+            const { lastInsertRowid } = insert.run(r.kind, r.tier, r.name, r.account_no, r.address, r.notes, who.email, at, at);
             for (const p of r.phones) addPhone.run(Number(lastInsertRowid), '', '', p.phone, p.digits);
           } else if (r.action === 'update') {
-            db.prepare('UPDATE customers SET name = ?, account_no = COALESCE(account_no, ?), updated_at = ? WHERE id = ?').run(r.name, r.account_no, at, r.id);
+            db.prepare('UPDATE customers SET name = ?, account_no = COALESCE(account_no, ?), tier = COALESCE(?, tier), updated_at = ? WHERE id = ?').run(r.name, r.account_no, r.tier, at, r.id);
             for (const p of r.addPhones) addPhone.run(r.id, '', '', p.phone, p.digits);
           }
         }
@@ -232,11 +246,15 @@ export function createCustomers({ db, audit, now, changed }) {
       return { ok: true, customers };
     },
 
-    list(who, { q = '', limit = 50, offset = 0 } = {}) {
+    list(who, { q = '', limit = 50, offset = 0, tier = '' } = {}) {
       const no = deny(who, 'customer.view');
       if (no) return no;
-      if (clean(q, 80)) return this.search(who, q, { limit });
-      const rows = db.prepare('SELECT * FROM customers ORDER BY name COLLATE NOCASE LIMIT ? OFFSET ?').all(limit, offset);
+      const only = TIERS.includes(tier) ? tier : '';
+      if (clean(q, 80)) {
+        const found = this.search(who, q, { limit: only ? 200 : limit });
+        return only ? { ...found, customers: found.customers.filter((c) => c.tier === only).slice(0, limit) } : found;
+      }
+      const rows = db.prepare("SELECT * FROM customers WHERE (? = '' OR tier = ?) ORDER BY name COLLATE NOCASE LIMIT ? OFFSET ?").all(only, only, limit, offset);
       return { ok: true, customers: rows.map((row) => ({ ...row, phones: phonesOf.all(row.id), open_calls: openCalls.get(row.id).n })) };
     },
   };

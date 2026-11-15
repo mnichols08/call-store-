@@ -22,3 +22,12 @@ table { width: 100%; border-collapse: collapse; }
   .sheet { box-shadow: none; max-width: none; margin: 0; padding: 0; }
   @page { margin: 14mm; }
 }
+/* The counter card. */
+.counter-card { text-align: center; padding: 1rem 0; }
+.counter-card h1 { font-size: 2.4rem; margin: 0.2rem 0; }
+.counter-card .big { font-size: 1.4rem; margin: 0.2rem 0 0.8rem; font-weight: 600; }
+.counter-card .qr svg { width: 16rem; height: 16rem; }
+.counter-card .link-text { font-size: 0.85rem; color: #444; word-break: break-all; }
+.counter-card .kv { margin: 0 auto; width: auto; text-align: left; }
+.counter-card .kv th { width: auto; padding-right: 1.5rem; }
+.counter-card h2 { border: 0; }

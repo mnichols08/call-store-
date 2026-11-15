@@ -5,6 +5,8 @@ import { can } from '../../domain/permissions.js';
 import { qrSvg } from '../../infra/qr.js';
 import { UPDATE_KINDS, STAFF_KINDS } from '../../domain/portal.js';
 import { PORTAL } from '../../app/portal.js';
+import { SHOP } from '../../domain/shop.js';
+import { weekTable } from '../../domain/hours.js';
 
 const PORTAL_DAYS = PORTAL.repCodeDays;
 
@@ -133,6 +135,24 @@ export function portalRoutes(router) {
     const f = ctx.form;
     const r = await ctx.app.portal.postUpdate(ctx.who, id, { kind: f.get('kind') ?? '', message: f.get('message') ?? '', email: f.get('email') === '1', origin: originOf(ctx) });
     return ctx.redirect(`/calls/${id}#customer-portal`, r.error ? { problem: problem(r) } : { done: 'Sent.' });
+  });
+
+  // A sheet to print and stand at the counter: scan it with a phone camera to get to online ordering.
+  router.get('/counter-card', (ctx) => {
+    if (!can(ctx.who, 'portal.invite')) return ctx.forbidden();
+    const link = `${originOf(ctx)}/portal/login`;
+    const svg = qrSvg(link, { label: `Order parts online from ${ctx.config.business}` });
+    const state = ctx.app.hours.week;
+    const rows = weekTable(ctx.now(), ctx.config.zone, state).map((r) => `<tr><th>${esc(r.day)}</th><td>${esc(r.hours)}</td></tr>`).join('');
+    return ctx.print('Order parts online', `<section class="counter-card">
+      <h1>Order parts online</h1>
+      <p class="big">Scan with your phone’s camera</p>
+      ${svg ? `<div class="qr">${svg}</div>` : ''}
+      <p>Sign in to send us a request any time, add photos and measurements, and see when it’s ready.</p>
+      <p><strong>No account yet?</strong> Ask at the counter and we’ll set one up for your business.</p>
+      <p class="link-text">${esc(link)}</p>
+      <h2>Hours</h2><table class="kv"><tbody>${rows}</tbody></table>
+      <p class="muted">${esc(SHOP.phone)} · ${esc(SHOP.address.street)}, ${esc(SHOP.address.city)}, ${esc(SHOP.address.state)}</p></section>`, '/customers');
   });
   router.get('/outbox', (ctx) => {
     const r = ctx.app.portal.outbox(ctx.who);

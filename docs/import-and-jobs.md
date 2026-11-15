@@ -7,3 +7,9 @@ You see what would happen before anything is saved: new, updated, already up to 
 
 ## Specialty jobs
 A customer picks "What kind of job is it?" on a new request: hydraulic hose assembly, paint mixing, battery, or special order. The request page then offers a form with the right questions (lengths and fittings for a hose, paint code and amount, battery group size, and so on), plus photos. Staff see the same form on the call. These never reach the part finder, so they never spend an AI search. The fields live in `src/domain/measure.js`.
+
+## Account types
+Each customer is **retail**, **pro** (mechanics, body shops, contractors) or **fleet**. It is a label for the people at the counter: a badge on the customer list, the customer page and the call, and a filter on the customer list. Set it on the customer's page, or with a `Type` column when importing (words like "Pro", "Commercial", "Fleet account" are understood; anything else is left as retail with a warning). Existing customers start as retail.
+
+## Counter card
+**Customers → Counter card** opens a one-page sheet to print and stand at the counter: a large QR code that opens online-ordering sign-in, a line saying how to get an account, and the shop's hours. The code points at `PUBLIC_URL`, so set it in production before printing, or the card will carry a local address.
