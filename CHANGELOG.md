@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased: design system (counter screens)
+- Call screen: the caller and the request come first, with the work tools (actions, vehicle lookup, parts finder, items) in a sticky right-hand column and the timeline folded away. The calls queue marks help requests and high-priority calls with a colored edge. Form labels and file pickers are tidied.
+
 ## Unreleased: design system (staff)
 - Staff screens move to a sidebar app shell: grouped navigation with icons, a New call button, the signed-in person and theme switch at the foot, and a menu drawer on phones. Neutral surfaces in light and dark, brand blue as the accent, and no photo behind staff work. Notifications offer is a single line. The public page and customer portal are unchanged for now.
 

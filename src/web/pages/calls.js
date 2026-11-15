@@ -56,7 +56,7 @@ export function callRoutes(router) {
       const n = key === 'active' ? counts.active : key === 'mine' ? counts.mine : key === 'unassigned' ? counts.unassigned : key === 'help' ? counts.help : key === 'parked' ? counts.parked : null;
       return `<a href="/calls?view=${key}${q ? `&q=${encodeURIComponent(q)}` : ''}"${key === view ? ' aria-current="true"' : ''}>${label}${n ? ` <span class="count">${n}</span>` : ''}</a>`;
     }).join('');
-    const rows = result.calls.map((c) => `<tr>
+    const rows = result.calls.map((c) => `<tr class="${c.help && c.help !== 'normal' ? 'row-help' : c.priority === 'high' ? 'row-high' : ''}">
       <td class="num"><a href="/calls/${c.id}">#${c.id}</a></td>
       <td><a class="title" href="/calls/${c.id}">${esc(c.title)}</a>${c.application && c.application !== c.title ? `<small>${esc(c.application)}</small>` : ''}</td>
       <td>${esc(c.customer_name ?? (c.caller_name || 'Walk-in / unknown'))}${c.caller_phone ? `<small>${esc(formatPhone(c.caller_phone))}</small>` : ''}</td>
@@ -213,10 +213,8 @@ async function workspace(ctx, got) {
 <div class="badges">${callBadges(page, call, people)}${call.outcome ? badge(page, 'primary', OUTCOMES[call.outcome]) : ''}<a class="btn" href="/calls/${call.id}/print" target="_blank" rel="noopener">Print</a></div></div>
 <div class="workspace">
 <div class="main-col">
-  ${callPortalPanel(ctx, got, closed)}
-  ${deliveryPanel(ctx, got, closed)}
   <section class="panel"><h2>Caller</h2>${lookup}</section>
-  ${vehiclePanel}
+  ${callPortalPanel(ctx, got, closed)}
   <form method="post" action="/calls/${call.id}/save" id="call-form" data-call="${call.id}" data-me="${esc(who.email)}" data-revision="${call.revision}" autocomplete="off">
     <input type="hidden" name="revision" value="${call.revision}">
     <section class="panel stack"><h2>The request</h2>
@@ -232,13 +230,15 @@ async function workspace(ctx, got) {
     <section class="panel stack"><h2>Notes</h2>${field(page, { label: 'Notes', name: 'notes', value: call.notes, rows: 4, ...lock })}</section>
     ${closed ? '' : `<div class="savebar"><span id="save-state" role="status" aria-live="polite" class="muted">Saves as you type.</span><noscript><button type="submit" class="btn primary">Save</button></noscript><button type="submit" class="btn primary js-only">Save now</button></div>`}
   </form>
+  ${deliveryPanel(ctx, got, closed)}
 </div>
 <aside class="side-col">
   <section class="panel"><h2>Work it</h2>${actions}</section>
   ${outcomeForm}
+  ${vehiclePanel}
   ${partsHtml}
   ${itemPanel}
-  ${timeline}
+  <details class="fold"><summary>Timeline <span class="count">${events.length}</span></summary>${timeline}</details>
 </aside>
 </div>`;
 }
