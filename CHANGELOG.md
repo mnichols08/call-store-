@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: order notebook
+- Scan a photo of a page of the special-order notebook. The AI reads the date and the four columns; a person checks every line before anything is saved. Orders list with received and paid. See docs/orders.md.
+- Fix: an impossible date such as 2026-13-45 on the Hours page could raise an error; dates are now checked safely.
+
 ## Unreleased: import and specialty jobs
 - Import a customer list (ID, Name, Phone) from a CSV: look it over, then confirm. No twins, nothing deleted. See docs/import-and-jobs.md.
 - Request types for hydraulic hose assembly, paint mixing, batteries and special orders, with their own questions and choice fields.

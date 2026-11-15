@@ -17,3 +17,11 @@ export function clip(text, max) {
 
 /** Replace any stray half of a surrogate pair with U+FFFD, so the text can be encoded and rendered. */
 export const wellFormed = (text) => String(text ?? '').toWellFormed();
+
+/** Whether `text` is a real calendar date written YYYY-MM-DD (2026-02-30 and 2026-13-45 are not). Never throws. */
+export function isRealDate(text) {
+  const t = String(text ?? '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return false;
+  const d = new Date(`${t}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === t;
+}

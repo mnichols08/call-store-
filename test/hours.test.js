@@ -70,6 +70,7 @@ test('managers add and remove closures; nobody else can; bad input is refused', 
   assert.equal(app.hours.set(ann, { date: '2026-11-26', note: 'Thanksgiving' }).error, 'forbidden');
   assert.equal(app.hours.set(manager, { date: 'nope' }).error, 'date');
   assert.equal(app.hours.set(manager, { date: '2026-02-30' }).error, 'date');
+  assert.equal(app.hours.set(manager, { date: '2026-13-45' }).error, 'date', 'an impossible month must not crash');
   assert.equal(app.hours.set(manager, { date: '2026-11-01' }).error, 'past');
   assert.equal(app.hours.set(manager, { date: '2026-12-24', open: '08:00' }).error, 'hours');
   assert.equal(app.hours.set(manager, { date: '2026-12-24', open: '13:00', close: '08:00' }).error, 'hours');

@@ -2,7 +2,7 @@
 import { can } from '../domain/permissions.js';
 import { SHOP } from '../domain/shop.js';
 import { addDays, localParts, minutesOf, shopState } from '../domain/hours.js';
-import { clip } from '../domain/text.js';
+import { clip, isRealDate } from '../domain/text.js';
 
 const KEY = 'closures';
 
@@ -32,7 +32,7 @@ export function createHours({ db, audit, now, changed, zone = 'America/New_York'
     /** Close a day (no open and close), or give it special hours (both). */
     set(who, { date, note = '', open = '', close = '' }) {
       if (!can(who, 'hours.manage')) return { error: 'forbidden' };
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date)) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) return { error: 'date' };
+      if (!isRealDate(date)) return { error: 'date' };
       if (date < today()) return { error: 'past' };
       const special = open || close;
       if (special && (minutesOf(open) == null || minutesOf(close) == null || minutesOf(close) <= minutesOf(open))) return { error: 'hours' };

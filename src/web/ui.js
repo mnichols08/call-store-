@@ -45,6 +45,7 @@ const NAV = [
   ['/items', 'Items', 'items', 'item.view'],
   ['/reports', 'Reports', 'reports', 'report.view'],
   ['/audit', 'Activity', 'audit', 'audit.view'],
+  ['/orders', 'Orders', 'orders', 'order.view'],
   ['/outbox', 'Outbox', 'outbox', 'portal.manage'],
   ['/hours', 'Hours', 'hours', 'hours.manage'],
 ];

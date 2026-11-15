@@ -12,6 +12,7 @@ import { createWatch } from './watch.js';
 import { createDetails } from './details.js';
 import { createPortal } from './portal.js';
 import { createHours } from './hours.js';
+import { createOrders } from './orders.js';
 import { createMailer } from '../infra/mail.js';
 import { createVehicleSources } from '../infra/vehicle-sources.js';
 import { createAi } from '../infra/ai.js';
@@ -33,5 +34,6 @@ export function createApp({ db, now = Date.now, changed = () => {}, fetcher = gl
   const customers = createCustomers(shared);
   const portal = createPortal({ ...shared, details, calls, mailer, business, nudges, customers });
   const hours = createHours({ ...shared, zone });
-  return { audit, details, portal, mailer, hours, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles: createVehicles({ ...shared, sources, log }), parts, customers, items: createItems(shared), calls, nudges, stats: createStats(shared) };
+  const orders = createOrders({ ...shared, ai, customers, log });
+  return { audit, details, portal, mailer, hours, orders, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles: createVehicles({ ...shared, sources, log }), parts, customers, items: createItems(shared), calls, nudges, stats: createStats(shared) };
 }

@@ -11,6 +11,7 @@ import { clientAddress, staffPages } from '../../vendor/kit/staff/pages.js';
 import { createNotices } from '../../vendor/kit/notice/index.js';
 import { watchRoutes } from './pages/watch.js';
 import { hoursRoutes } from './pages/hours.js';
+import { ordersRoutes } from './pages/orders.js';
 import { detailsRoutes } from './pages/details.js';
 import { createCustomerPages } from './customer.js';
 import { createPortalPages } from './portal.js';
@@ -94,6 +95,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   detailsRoutes(router);
   watchRoutes(router);
   hoursRoutes(router);
+  ordersRoutes(router);
   portalRoutes(router);
 
   const customer = createCustomerPages({ app, config, zubra, now });
@@ -252,7 +254,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     if (posting) {
       try {
         // Photos arrive as the picture itself, not as a form.
-        if (/^\/d\/[A-Za-z0-9_-]+\/photo\/?$/.test(url.pathname) || /^\/portal\/requests\/\d+\/photo\/?$/.test(url.pathname) || /^\/calls\/\d+\/photos\/?$/.test(url.pathname)) {
+        if (/^\/d\/[A-Za-z0-9_-]+\/photo\/?$/.test(url.pathname) || /^\/portal\/requests\/\d+\/photo\/?$/.test(url.pathname) || /^\/calls\/\d+\/photos\/?$/.test(url.pathname) || url.pathname === '/orders/read') {
           raw = await readRaw(req, LIMITS.photoBytes + 4096);
           form = new URLSearchParams();
         } else form = await readForm(req, /^\/customers\/import(\/|$)/.test(url.pathname) ? IMPORT_BODY : MAX_BODY);

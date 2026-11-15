@@ -388,3 +388,19 @@ pre.wrap { white-space: pre-wrap; word-break: break-word; margin: .5rem 0 0; }
 .site table.hours tr.today { outline: 2px solid var(--primary); outline-offset: -2px; }
 .site .site-foot { text-align: center; padding: 1rem 0 2rem; display: grid; gap: 0.3rem; font-size: 0.9rem; }
 .site h3 { margin: 0.4rem 0 0; font-size: 1rem; }
+
+/* The order notebook. */
+.orders td, .orders th { vertical-align: top; }
+.orders input:not([type="checkbox"]), .orders select { width: 100%; min-width: 5rem; }
+.orders input.unsure { outline: 2px solid var(--cs-danger); outline-offset: 1px; }
+.orders tr.struck td { opacity: 0.55; }
+.scroll-x { overflow-x: auto; }
+.sheet-preview { max-width: 100%; max-height: 28rem; border-radius: 10px; border: 1px solid var(--border); }
+label.inline { display: inline-flex; align-items: center; gap: 0.4rem; }
+/* Review table: wide enough to read a whole part number on a phone; the table scrolls sideways. */
+#review-form .orders { min-width: 46rem; }
+#review-form .orders td:nth-child(2) input { min-width: 4.5rem; }
+#review-form .orders td:nth-child(3) input { min-width: 10rem; }
+#review-form .orders td:nth-child(4) input { min-width: 11rem; }
+#review-form .orders td:nth-child(5) input { min-width: 11rem; }
+#review-form .orders td:nth-child(6) select { min-width: 9rem; }
