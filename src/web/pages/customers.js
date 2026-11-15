@@ -41,7 +41,7 @@ export function customerRoutes(router) {
     return ctx.send('Customers', `
 <div class="head"><h1>Customers</h1><div class="row">
 <form method="get" action="/customers" class="search" role="search"><input type="search" name="q" value="${esc(q)}" placeholder="Phone, name or account" aria-label="Search customers"><button type="submit">Search</button></form>
-${can(ctx.who, 'customer.create') ? '<a class="btn primary" href="/customers/new">Add customer</a>' : ''}</div></div>
+${can(ctx.who, 'customer.import') ? '<a class="btn" href="/customers/import">Import list</a>' : ''}${can(ctx.who, 'customer.create') ? '<a class="btn primary" href="/customers/new">Add customer</a>' : ''}</div></div>
 ${accessPanel(ctx)}
 ${list.length ? `<table class="grid"><thead><tr><th>Name</th><th>Account</th><th>Phones</th><th>Open calls</th></tr></thead><tbody>${rows}</tbody></table>` : empty(page, q ? 'No one matches' : 'No customers yet', q ? 'Try the last four digits of the phone number.' : 'Callers don’t have to be customers. Add the regulars here.')}`, { active: 'customers' });
   });
@@ -49,6 +49,42 @@ ${list.length ? `<table class="grid"><thead><tr><th>Name</th><th>Account</th><th
   router.get('/customers/new', (ctx) => {
     if (!can(ctx.who, 'customer.create')) return ctx.forbidden();
     return ctx.send('Add customer', `<div class="head"><h1>Add customer</h1></div>${customerForm(ctx.page, {}, '/customers', ctx.url.searchParams.get('call') ?? '')}`, { active: 'customers' });
+  });
+
+
+  // Bring in a customer list from a spreadsheet (CSV): look it over first, then confirm.
+  const importForm = (text = '') => `<form method="post" action="/customers/import/preview" class="panel stack">
+    <p>Columns: <strong>ID</strong> (the account number), <strong>Name</strong> and <strong>Phone</strong>. Address and Notes work too. Separate cells with commas or tabs, so a copy from a spreadsheet works as it is. Nothing changes until you confirm.</p>
+    <label>Choose a file<input type="file" id="import-file" accept=".csv,.tsv,.txt,text/csv,text/plain"></label>
+    <label>Or paste it here<textarea name="csv" id="import-text" rows="10" spellcheck="false" placeholder="ID&#9;Name&#9;Phone">${esc(text)}</textarea></label>
+    <div class="row"><button class="btn primary">Look it over</button><a class="btn" href="/customers">Cancel</a></div></form>`;
+  const importScript = () => `<script src="/assets/import.js" defer></script>`;
+  router.get('/customers/import', (ctx) => {
+    if (!can(ctx.who, 'customer.import')) return ctx.forbidden();
+    return ctx.send('Import customers', `<div class="head"><h1>Import customers</h1></div>${importForm()}`, { active: 'customers', script: importScript(ctx) });
+  });
+  router.post('/customers/import/preview', (ctx) => {
+    if (!can(ctx.who, 'customer.import')) return ctx.forbidden();
+    const text = ctx.form.get('csv') ?? '';
+    const plan = ctx.app.customers.importPlan(ctx.who, text);
+    if (plan.error) return ctx.send('Import customers', `<div class="head"><h1>Import customers</h1></div><p class="flash problem" role="alert">${esc(say(plan.error))}</p>${importForm(text)}`, { active: 'customers', script: importScript(ctx) }, 400);
+    const { counts, rows } = plan;
+    const LABEL = { new: 'New', update: 'Update', same: 'No change', skip: 'Skipped' };
+    const VARIANT = { new: 'success', update: 'primary', same: 'outline', skip: 'warning' };
+    const shown = rows.filter((r) => r.action !== 'same').slice(0, 300);
+    const detail = (r) => esc(r.action === 'skip' ? r.why : r.action === 'update' ? r.changes.join('; ') : [r.kind === 'organization' ? 'Business' : '', ...r.phones.map((p) => p.phone)].filter(Boolean).join(' · ')) + (r.warnings.length ? `<small>${esc(r.warnings.join('; '))}</small>` : '');
+    const todo = counts.new + counts.update;
+    return ctx.send('Import customers', `<div class="head"><h1>Look it over</h1></div>
+      <section class="panel stack"><p><strong>${counts.new}</strong> new · <strong>${counts.update}</strong> updated · <strong>${counts.same}</strong> already up to date · <strong>${counts.skip}</strong> skipped</p>
+        <p class="muted">Updates only change the name, add an account number that’s missing, and add phones that aren’t there yet. Nothing is deleted, and notes and history stay as they are. New names that look like a business are added as one; you can change that on the customer’s page.</p>
+        ${todo ? `<form method="post" action="/customers/import" class="row"><input type="hidden" name="csv" value="${esc(text)}"><button class="btn primary">Import ${todo} customer${todo === 1 ? '' : 's'}</button><a class="btn" href="/customers/import">Start over</a></form>` : '<p>There’s nothing to import. <a href="/customers/import">Start over</a>.</p>'}</section>
+      ${shown.length ? `<section class="panel"><table class="grid compact"><thead><tr><th>Line</th><th></th><th>Name</th><th>Account</th><th>What happens</th></tr></thead><tbody>${shown.map((r) => `<tr><td class="num">${r.line}</td><td>${badge(ctx.page, VARIANT[r.action], LABEL[r.action])}</td><td>${esc(r.name || '—')}</td><td>${esc(r.account_no ?? '')}</td><td>${detail(r)}</td></tr>`).join('')}</tbody></table>${rows.filter((r) => r.action !== 'same').length > shown.length ? `<p class="muted">Showing the first ${shown.length} lines that need attention.</p>` : ''}</section>` : ''}`, { active: 'customers' });
+  });
+  router.post('/customers/import', (ctx) => {
+    const r = ctx.app.customers.importApply(ctx.who, ctx.form.get('csv') ?? '');
+    if (r.error === 'forbidden') return ctx.forbidden();
+    if (r.error) return ctx.redirect('/customers/import', { problem: say(r.error) });
+    return ctx.redirect('/customers', { done: `Imported: ${r.counts.new} new, ${r.counts.update} updated.` });
   });
 
   router.post('/customers', (ctx) => {

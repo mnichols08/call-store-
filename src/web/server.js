@@ -37,6 +37,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(here, '..', '..', 'public');
 const TYPES = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.webp': 'image/webp' };
 const MAX_BODY = 256 * 1024;
+const IMPORT_BODY = 2 * 1024 * 1024; // a pasted customer list, percent-encoded, is a few times its size
 
 export async function createWeb({ db, config, now = Date.now, log = createLogger({ requests: config.logRequests }), sendPush, fetcher, ai }) {
   const store = sqliteStore(db);
@@ -136,12 +137,12 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     return Buffer.concat(chunks);
   }
 
-  async function readForm(req) {
+  async function readForm(req, limit = MAX_BODY) {
     const chunks = [];
     let size = 0;
     for await (const chunk of req) {
       size += chunk.length;
-      if (size > MAX_BODY) throw Object.assign(new Error('too large'), { status: 413 });
+      if (size > limit) throw Object.assign(new Error('too large'), { status: 413 });
       chunks.push(chunk);
     }
     // Buffer decoding already turns bad UTF-8 into U+FFFD; a percent-escaped surrogate half decodes the same way.
@@ -254,7 +255,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
         if (/^\/d\/[A-Za-z0-9_-]+\/photo\/?$/.test(url.pathname) || /^\/portal\/requests\/\d+\/photo\/?$/.test(url.pathname) || /^\/calls\/\d+\/photos\/?$/.test(url.pathname)) {
           raw = await readRaw(req, LIMITS.photoBytes + 4096);
           form = new URLSearchParams();
-        } else form = await readForm(req);
+        } else form = await readForm(req, /^\/customers\/import(\/|$)/.test(url.pathname) ? IMPORT_BODY : MAX_BODY);
       } catch (error) {
         res.once('finish', () => req.destroy()); // the rest of an oversized body is never read, so don't reuse the connection
         return html(res, error.status ?? 400, 'That request was too large.', { 'content-type': 'text/plain', connection: 'close' });

@@ -12,10 +12,12 @@ export function measureForm({ action, type, unit, values = {}, note = '', baseUr
   const spec = PART_TYPES[type];
   if (!spec) return `<p class="muted">What is it?</p><div class="chips">${chips}</div>`;
   const u = unit === 'in' ? 'in' : 'mm';
-  const fields = spec.fields.map((f) => `<label>${esc(f.label)}<input name="f_${f.key}" value="${esc(values[f.key]?.text ?? '')}" ${f.kind === 'text' ? '' : 'inputmode="decimal"'} maxlength="40" autocomplete="off"></label>`).join('');
+  const fields = spec.fields.map((f) => (f.kind === 'choice'
+    ? `<label>${esc(f.label)}<select name="f_${f.key}"><option value="">Choose…</option>${f.options.map((o) => `<option${values[f.key]?.text === o ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></label>`
+    : `<label>${esc(f.label)}<input name="f_${f.key}" value="${esc(values[f.key]?.text ?? '')}" ${f.kind === 'text' ? '' : 'inputmode="decimal"'} maxlength="40" autocomplete="off"></label>`)).join('');
   return `<div class="chips">${chips}</div><p class="muted">${esc(spec.help)}</p>
     <form method="post" action="${action}" class="stack"><input type="hidden" name="type" value="${type}">
-    ${spec.fields.some((f) => f.kind !== 'text') ? `<fieldset class="units"><legend>Measured in</legend><label><input type="radio" name="unit" value="mm"${u === 'mm' ? ' checked' : ''}> millimetres</label><label><input type="radio" name="unit" value="in"${u === 'in' ? ' checked' : ''}> inches</label></fieldset>` : '<input type="hidden" name="unit" value="mm">'}
+    ${spec.fields.some((f) => f.kind === 'length') ? `<fieldset class="units"><legend>Measured in</legend><label><input type="radio" name="unit" value="mm"${u === 'mm' ? ' checked' : ''}> millimetres</label><label><input type="radio" name="unit" value="in"${u === 'in' ? ' checked' : ''}> inches</label></fieldset>` : '<input type="hidden" name="unit" value="mm">'}
     <div class="two">${fields}</div>
     <label>Anything else (numbers stamped on it, where it goes)<textarea name="note" rows="2" maxlength="${LIMITS.note}">${esc(note)}</textarea></label>${extra}<button class="btn primary">${esc(submit)}</button></form>`;
 }

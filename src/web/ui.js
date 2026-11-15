@@ -97,6 +97,10 @@ ${who ? '<script src="/assets/shortcuts.js" defer></script><script src="/assets/
 
 /** What each error code from the application layer says, in words for the person at the counter. */
 export const WORDS = {
+  empty: 'Paste the list or choose a file first.',
+  'too-big': 'That list is too big to import in one go. Split it into smaller files.',
+  'too-many': 'That list has too many rows for one import. Split it into files of 5,000 or fewer.',
+  'no-header': 'The first row needs column names. Include at least a Name column (ID and Phone too, if you have them).',
   forbidden: 'Your role can’t do that.',
   type: 'Pick what kind of part it is.',
   measure: 'A measurement doesn’t look right. Use numbers like 25, 25.4 or 1/2.',

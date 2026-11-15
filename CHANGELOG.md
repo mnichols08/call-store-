@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: import and specialty jobs
+- Import a customer list (ID, Name, Phone) from a CSV: look it over, then confirm. No twins, nothing deleted. See docs/import-and-jobs.md.
+- Request types for hydraulic hose assembly, paint mixing, batteries and special orders, with their own questions and choice fields.
+
 ## Unreleased: public page and hours
 - `/` is now the shop's public page for signed-out visitors (signed-in staff still get Today); robots.txt, sitemap and structured data.
 - Opening hours (`src/domain/hours.js`, `src/domain/shop.js`), a manager Hours page for closures and special hours, and an after-hours note for portal customers.

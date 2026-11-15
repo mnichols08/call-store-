@@ -4,6 +4,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { can } from '../domain/permissions.js';
 import { clip } from '../domain/text.js';
+import { SERVICE_TYPES } from '../domain/measure.js';
 import { UPDATE_KINDS, STAFF_KINDS, cleanEmail, currentKind, isOpenForCustomer } from '../domain/portal.js';
 
 const SYSTEM = Object.freeze({ email: 'portal', roles: ['staff'] });
@@ -340,7 +341,8 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
       if (db.prepare("SELECT COUNT(*) AS n FROM calls WHERE source = 'portal' AND portal_account = ? AND created_at > ?").get(acct.id, now() - 24 * HOUR).n >= PORTAL.requestsPerDay) return { error: 'slow-down' };
       const wants = { pickup: 'Will pick up', deliver: 'Wants it delivered' }[input.fulfilment];
       const needed = { today: 'Needed today', week: 'Needed this week' }[input.needed];
-      const note = [wants, needed].filter(Boolean).join('. ');
+      const job = SERVICE_TYPES().find((x) => x.key === input.service);
+      const note = [job ? `Kind of job: ${job.label}` : '', wants, needed].filter(Boolean).join('. ');
       const quantity = Number.parseInt(input.quantity, 10);
       const r = calls.create(SYSTEM, {
         caller_name: acct.name, request: text, part_numbers: parts, quantity: quantity > 0 && quantity < 10_000 ? quantity : null,
@@ -352,7 +354,7 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
       db.prepare("INSERT INTO portal_updates (call_id, at, kind, message, account_id) VALUES (?, ?, 'received', '', ?)").run(r.id, now(), acct.id);
       audit.record(`portal:${acct.email}`, 'portal.request', `call:${r.id}`, {});
       changed({ type: 'call', id: r.id });
-      return { ok: true, id: r.id };
+      return { ok: true, id: r.id, service: job?.key ?? '' };
     },
     addNote(acct, id, text) {
       const c = db.prepare("SELECT * FROM calls WHERE id = ? AND customer_id = ? AND source = 'portal'").get(id, acct.customer_id);

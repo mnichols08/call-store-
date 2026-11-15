@@ -8,7 +8,7 @@ export const ROLES = Object.freeze(['owner', 'manager', 'staff']);
 const STAFF = ['call.view', 'call.create', 'call.edit', 'call.claim', 'call.release', 'call.move', 'call.help', 'call.close', 'call.reopen',
   'customer.view', 'customer.create', 'customer.edit', 'item.view', 'item.create', 'nudge.send',
   'vehicle.lookup', 'vehicle.save', 'parts.find', 'parts.feedback', 'parts.teach', 'call.watch', 'call.suggest', 'portal.invite', 'portal.update'];
-const MANAGER = [...STAFF, 'call.assign', 'item.edit', 'customer.deactivate', 'report.view', 'audit.view', 'parts.manage', 'watch.manage', 'portal.manage', 'hours.manage'];
+const MANAGER = [...STAFF, 'call.assign', 'item.edit', 'customer.deactivate', 'report.view', 'audit.view', 'parts.manage', 'watch.manage', 'portal.manage', 'hours.manage', 'customer.import'];
 
 const GRANTS = Object.freeze({ staff: new Set(STAFF), manager: new Set(MANAGER) });
 

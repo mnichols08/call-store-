@@ -2,6 +2,9 @@
 // what was typed, and turning it into a key the shop can remember an answer under.
 
 const LENGTH = 'length';
+const CHOICE = 'choice';
+/** The jobs a customer can ask for besides a part, by key. */
+export const SERVICE_TYPES = () => Object.entries(PART_TYPES).filter(([, t]) => t.service).map(([key, t]) => ({ key, label: t.label }));
 export const PART_TYPES = Object.freeze({
   bearing: { label: 'Bearing', help: 'Measure the hole, the outside, and the thickness. Numbers stamped on it (like 6205) help too.', fields: [
     { key: 'id', short: 'id', label: 'Inner diameter (the hole)', kind: LENGTH }, { key: 'od', short: 'od', label: 'Outer diameter', kind: LENGTH }, { key: 'width', short: 'w', label: 'Width (thickness)', kind: LENGTH }] },
@@ -16,6 +19,24 @@ export const PART_TYPES = Object.freeze({
   wiper: { label: 'Wiper blade', help: 'Length is stamped on the old blade or in the manual.', fields: [{ key: 'length', short: 'len', label: 'Length', kind: LENGTH }] },
   filter: { label: 'Filter', help: 'The thread size and the outside measurements. The number printed on the old one is best.', fields: [
     { key: 'od', short: 'od', label: 'Outer diameter', kind: LENGTH }, { key: 'height', short: 'h', label: 'Height', kind: LENGTH }, { key: 'thread', short: 'thread', label: 'Thread size (like 3/4-16)', kind: 'text' }] },
+  // Jobs the shop does or arranges, not parts matched by size. The details still travel with the request,
+  // but nothing here is looked up in the part finder, so it never spends an AI search.
+  'hose-assembly': { service: true, label: 'Hydraulic hose assembly', help: 'Bring the old hose if you can and we can copy it. Photos of both ends help a lot.', fields: [
+    { key: 'job', short: 'job', name: 'Job', label: 'What do you need', kind: CHOICE, options: ['Make a new assembly', 'Repair or re-crimp one', 'Not sure'] },
+    { key: 'id', short: 'id', label: 'Hose inside diameter', kind: LENGTH }, { key: 'length', short: 'len', label: 'Finished length (end to end)', kind: LENGTH },
+    { key: 'endA', short: 'a', name: 'End A', label: 'End A (size, thread, shape)', kind: 'text' }, { key: 'endB', short: 'b', name: 'End B', label: 'End B (size, thread, shape)', kind: 'text' },
+    { key: 'pressure', short: 'psi', name: 'Pressure (psi)', label: 'Working pressure (psi), if known', kind: 'text' }, { key: 'use', short: 'use', name: 'On', label: 'What it’s on', kind: 'text' }] },
+  paint: { service: true, label: 'Paint mixing', help: 'The paint code is on a sticker, usually in the driver’s door jamb. If you can’t find it, bring in the gas door or a small painted piece and we can match it.', fields: [
+    { key: 'code', short: 'code', name: 'Paint code', label: 'Paint code', kind: 'text' }, { key: 'color', short: 'color', name: 'Color', label: 'Color name', kind: 'text' },
+    { key: 'product', short: 'product', name: 'Product', label: 'Product', kind: CHOICE, options: ['Base coat', 'Single stage', 'Clear coat', 'Primer', 'Not sure'] },
+    { key: 'amount', short: 'amount', name: 'Amount', label: 'How much', kind: CHOICE, options: ['Spray can', 'Half pint', 'Pint', 'Quart', 'Gallon', 'Not sure'] }] },
+  battery: { service: true, label: 'Battery', help: 'The group size is printed on the label of the old battery. Bring it in and we’ll test it before you buy a new one.', fields: [
+    { key: 'group', short: 'group', name: 'Group size', label: 'Group size (like 24F or 78)', kind: 'text' }, { key: 'cca', short: 'cca', name: 'CCA', label: 'Cold cranking amps (CCA), if known', kind: 'text' },
+    { key: 'terminals', short: 'term', label: 'Terminals', kind: CHOICE, options: ['Top post', 'Side post', 'Not sure'] },
+    { key: 'use', short: 'use', name: 'Going in', label: 'Going in', kind: CHOICE, options: ['Car or truck', 'Tractor or equipment', 'Boat or RV', 'Lawn and garden', 'Other'] },
+    { key: 'test', short: 'test', name: 'Test old one', label: 'Test my old one first?', kind: CHOICE, options: ['Yes, test it', 'No, just a new one'] }] },
+  'special-order': { service: true, label: 'Special order', help: 'Not on the shelf? Tell us what you can and we’ll find out what we can get and how long it takes.', fields: [
+    { key: 'size', short: 'size', label: 'Size or specs', kind: 'text' }, { key: 'brand', short: 'brand', name: 'Brand', label: 'Brand, if you have one in mind', kind: 'text' }, { key: 'number', short: 'no', name: 'Part number', label: 'Part number, if known', kind: 'text' }] },
   other: { label: 'Something else', help: 'Tell us what it is in the note, and send photos.', fields: [] },
 });
 
@@ -48,6 +69,11 @@ export function readMeasurements(type, unit, get) {
     const text = clean(get(`f_${f.key}`)).slice(0, 40);
     if (!text) continue;
     if (f.kind === 'text') { values[f.key] = { text }; continue; }
+    if (f.kind === CHOICE) { // only what the form offered; anything else is dropped, not saved
+      const option = f.options.find((o) => o.toLowerCase() === text.toLowerCase());
+      if (option) values[f.key] = { text: option };
+      continue;
+    }
     const n = parseNumber(text);
     const limit = f.kind === 'count' ? 40 : u === 'in' ? 200 : 5000;
     if (n == null || n <= 0 || n > limit) { errors.push(f.key); continue; }
@@ -59,7 +85,7 @@ export function readMeasurements(type, unit, get) {
 /** The key a remembered answer is filed under, or null until every field is filled in. Same part, same key, in any unit. */
 export function measureKey(type, values) {
   const spec = PART_TYPES[type];
-  if (!spec || !spec.fields.length || type === 'other') return null;
+  if (!spec || !spec.fields.length || type === 'other' || spec.service) return null;
   const parts = [];
   for (const f of spec.fields) {
     const v = values?.[f.key];
@@ -75,5 +101,5 @@ export function measureKey(type, values) {
 export function describeMeasurements(type, unit, values) {
   const spec = PART_TYPES[type];
   if (!spec) return '';
-  return spec.fields.filter((f) => values?.[f.key]).map((f) => `${f.label.replace(/ \(.*\)$/, '')} ${values[f.key].text}${f.kind === LENGTH ? ` ${unit}` : ''}`).join(', ');
+  return spec.fields.filter((f) => values?.[f.key]).map((f) => `${f.name ?? f.label.replace(/ \(.*\)$/, '')} ${values[f.key].text}${f.kind === LENGTH ? ` ${unit}` : ''}`).join(', ');
 }

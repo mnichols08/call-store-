@@ -9,6 +9,7 @@ import { UPDATE_KINDS } from '../domain/portal.js';
 import { LIMITS } from '../app/details.js';
 import { PORTAL } from '../app/portal.js';
 import { SHOP } from '../domain/shop.js';
+import { SERVICE_TYPES } from '../domain/measure.js';
 
 const COOKIE = 'cs_portal';
 const SAYS = {
@@ -86,6 +87,7 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
   function newRequest(acct, q) {
     return `<div class="head"><h1>New request</h1><a class="btn" href="/portal">Back</a></div>${flash(q)}${hoursNote()}
       <form class="panel stack" method="post" action="/portal/requests">
+        <label>What kind of job is it?<select name="service"><option value="">Parts</option>${SERVICE_TYPES().map((x) => `<option value="${esc(x.key)}">${esc(x.label)}</option>`).join('')}</select></label>
         <label>What do you need?<textarea name="request" rows="3" maxlength="500" required placeholder="Water pump for a 2015 John Deere 5075E"></textarea></label>
         <label>Part numbers, if you have them<input name="partNumbers" maxlength="200" autocomplete="off"></label>
         <div class="two"><label>Quantity<input name="quantity" inputmode="numeric" maxlength="4" value="1"></label>
@@ -95,7 +97,7 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
           <label>Year<input name="year" inputmode="numeric" maxlength="4"></label><label>Make<input name="make" maxlength="60"></label>
           <label>Model<input name="model" maxlength="80"></label><label>Engine<input name="engine" maxlength="80"></label></div>
           <label>VIN<input name="vin" maxlength="20" autocomplete="off"></label></details>
-        <p class="muted">After you send it you can add measurements and photos.</p><button class="btn primary">Send request</button></form>`;
+        <p class="muted">After you send it you can add the details and photos.</p><button class="btn primary">Send request</button></form>`;
   }
 
   function requestPage(acct, r, q) {
@@ -255,9 +257,9 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
       if (p === '/portal/requests/new' && !posting) return page(res, nonce, 200, 'New request', newRequest(acct, q), { acct }), true;
       if (p === '/portal/requests' && posting) {
         const f = (k) => form.get(k) ?? '';
-        const r = app.portal.createRequest(acct, { request: f('request'), partNumbers: f('partNumbers'), quantity: f('quantity'), needed: f('needed'), fulfilment: f('fulfilment'), year: f('year'), make: f('make'), model: f('model'), engine: f('engine'), vin: f('vin') });
+        const r = app.portal.createRequest(acct, { request: f('request'), partNumbers: f('partNumbers'), quantity: f('quantity'), needed: f('needed'), fulfilment: f('fulfilment'), service: f('service'), year: f('year'), make: f('make'), model: f('model'), engine: f('engine'), vin: f('vin') });
         if (r.error) return fail(res, '/portal/requests/new', r), true;
-        go(res, `/portal/requests/${r.id}?ok=sent`);
+        go(res, `/portal/requests/${r.id}?ok=sent${r.service ? `&type=${r.service}` : ''}`);
         return true;
       }
       if (p === '/portal/team' && !posting) return page(res, nonce, 200, 'Team', teamPage(acct, q, req), { acct }), true;
