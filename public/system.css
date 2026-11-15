@@ -129,3 +129,6 @@ body.app {
 .app text-field .field-optional, .app select-field .field-optional { font-size: .78rem; }
 .app .field-stack { gap: .3rem; }
 .app form.panel label:not(:has(.field-stack)) { margin-bottom: .6rem; }
+
+/* quick entry: let the panel shrink on a phone instead of pushing its buttons off the screen */
+.app #quick, .app #quick-entry { min-width: 0; max-width: 100%; }

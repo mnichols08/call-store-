@@ -10,6 +10,7 @@ import { createVehicles } from './vehicles.js';
 import { createParts } from './parts.js';
 import { createWatch } from './watch.js';
 import { createDetails } from './details.js';
+import { createLines } from './lines.js';
 import { createPortal } from './portal.js';
 import { createHours } from './hours.js';
 import { createOrders } from './orders.js';
@@ -30,6 +31,7 @@ export function createApp({ db, now = Date.now, changed = () => {}, fetcher = gl
   const nudges = createNudges(shared);
   const parts = createParts({ ...shared, ai, limits, log });
   const calls = createCalls(shared);
+  const lines = createLines(shared);
   const details = createDetails({ ...shared, nudges, ai, log });
   const mailer = mailOptions.send ? mailOptions : createMailer({ db, now, fetcher, log, ...mailOptions });
   const customers = createCustomers(shared);
@@ -37,5 +39,5 @@ export function createApp({ db, now = Date.now, changed = () => {}, fetcher = gl
   const hours = createHours({ ...shared, zone });
   const orders = createOrders({ ...shared, ai, customers, log });
   const delivery = createDelivery({ ...shared, portal });
-  return { audit, details, portal, mailer, hours, orders, delivery, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles: createVehicles({ ...shared, sources, log }), parts, customers, items: createItems(shared), calls, nudges, stats: createStats(shared) };
+  return { audit, lines, details, portal, mailer, hours, orders, delivery, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles: createVehicles({ ...shared, sources, log }), parts, customers, items: createItems(shared), calls, nudges, stats: createStats(shared) };
 }

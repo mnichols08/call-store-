@@ -5,7 +5,7 @@ import { build } from 'esbuild';
 import esbuildSvelte from 'esbuild-svelte';
 
 await build({
-  entryPoints: { 'part-helper': 'src/islands/part-helper.js' },
+  entryPoints: { 'part-helper': 'src/islands/part-helper.js', 'quick-entry': 'src/islands/quick-entry.js' },
   outdir: 'public/islands',
   bundle: true,
   format: 'esm',

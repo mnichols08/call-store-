@@ -11,6 +11,7 @@ import { callPortalPanel } from './portal.js';
 import { suggestionsPanel } from './watch.js';
 import { matchData, partsPanel, vehiclePanels } from './vehicles.js';
 import { bounded } from '../stream.js';
+import { quickEntry } from './quick.js';
 
 const VIEWS = [
   ['active', 'All open'],
@@ -22,6 +23,9 @@ const VIEWS = [
 ];
 
 const EVENT_WORDS = {
+  'line-added': (d) => `Line: ${d.text}`,
+  'line-edited': (d) => `Line changed: ${d.text}`,
+  'line-removed': (d) => `Line removed: ${d.text}`,
   assist: () => 'The customer asked the AI to look at their photos',
   details: (d) => `Measurements ${d.complete ? 'filled in' : 'started'}`,
   portal: () => 'You updated the customer',
@@ -44,6 +48,8 @@ const EVENT_WORDS = {
   'item-added': (d) => `Item ${d.sku} × ${d.quantity}`,
   'item-removed': () => 'Item removed',
 };
+
+const LINE_PROBLEMS = { empty: 'Type a part, a vehicle, or both.', 'too-many': 'That’s the most lines one call can hold. Start a second call.', closed: 'This call is closed.' };
 
 export function callRoutes(router) {
   // ---------------------------------------------------------------- the queue
@@ -110,6 +116,23 @@ ${result.calls.length
     return ctx.redirect(`/calls/${id}`, result.error ? { problem: say(result.error) } : { done: 'Saved.' });
   });
 
+  // Lines: one typed line per part. JSON for the page's entry box; a plain form post still works without JavaScript.
+  router.post('/calls/:id/lines', (ctx) => {
+    const id = Number(ctx.params.id);
+    const f = ctx.form;
+    const lines = ctx.app.lines;
+    const line = Number(f.get('line'));
+    let result;
+    switch (f.get('action') || 'add') {
+      case 'edit': result = lines.edit(ctx.who, id, line, f.get('text') ?? ''); break;
+      case 'done': result = lines.done(ctx.who, id, line, f.get('done') === '1'); break;
+      case 'remove': result = lines.remove(ctx.who, id, line); break;
+      default: result = lines.add(ctx.who, id, f.get('text') ?? '');
+    }
+    if (ctx.wantsJson) return ctx.json(result, result.error === 'forbidden' ? 403 : result.error === 'missing' ? 404 : result.error ? 409 : 200);
+    return ctx.redirect(`/calls/${id}#quick`, result.error ? { problem: LINE_PROBLEMS[result.error] ?? say(result.error) } : {});
+  });
+
   // One endpoint for the buttons: each is a form with an `action` value.
   router.post('/calls/:id/action', (ctx) => {
     const id = Number(ctx.params.id);
@@ -144,6 +167,7 @@ async function workspace(ctx, got) {
   const { page, who, people, config, url, app } = ctx;
   const { call, customer, items, events, earlier } = got;
   const closed = call.status === 'closed';
+  const lineData = app.lines.list(who, call.id);
   const finished = ['resolved', 'closed'].includes(call.status);
   const mine = call.assignee === who.email;
   const a = call.application;
@@ -215,9 +239,11 @@ async function workspace(ctx, got) {
 <div class="workspace">
 <div class="main-col">
   <section class="panel"><h2>Caller</h2>${lookup}</section>
+  ${closed && !lineData.lines.length ? '' : quickEntry(ctx, call, lineData, closed)}
   ${callPortalPanel(ctx, got, closed)}
   <form method="post" action="/calls/${call.id}/save" id="call-form" data-call="${call.id}" data-me="${esc(who.email)}" data-revision="${call.revision}" autocomplete="off">
     <input type="hidden" name="revision" value="${call.revision}">
+    <details class="fold details-fold"${lineData.lines.length ? '' : ' open'}><summary>Request and vehicle details</summary>
     <section class="panel stack"><h2>The request</h2>
       ${field(page, { label: 'What do they need?', name: 'request', value: call.request, rows: 3, ...lock })}
       <div class="two">${field(page, { label: 'Part number(s) they gave', name: 'part_numbers', value: call.part_numbers, ...lock })}${field(page, { label: 'Quantity', name: 'quantity', value: call.quantity == null ? '' : String(call.quantity), inputmode: 'numeric', ...lock })}</div>
@@ -228,6 +254,7 @@ async function workspace(ctx, got) {
       <div class="four">${[['drivetrain', 'Drivetrain'], ['vin', 'VIN / serial'], ['unit', 'Fleet / unit no.']].map(([k, l]) => field(page, { label: l, name: `app_${k}`, value: a[k] ?? '', ...lock })).join('')}${select(page, { label: 'Priority', name: 'priority', value: call.priority, options: PRIORITIES.map((p) => ({ value: p, label: p[0].toUpperCase() + p.slice(1) })), ...lock })}</div>
       ${field(page, { label: 'Anything else about the equipment', description: 'Casting number, hydraulic specs, dimensions, whatever the caller says.', name: 'app_freeform', value: a.freeform ?? '', rows: 2, ...lock })}
     </section>
+    </details>
     <section class="panel stack"><h2>Notes</h2>${field(page, { label: 'Notes', name: 'notes', value: call.notes, rows: 4, ...lock })}</section>
     ${closed ? '' : `<div class="savebar"><span id="save-state" role="status" aria-live="polite" class="muted">Saves as you type.</span><noscript><button type="submit" class="btn primary">Save</button></noscript><button type="submit" class="btn primary js-only">Save now</button></div>`}
   </form>
