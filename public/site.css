@@ -28,12 +28,12 @@ body.site { margin: 0; font: 16px/1.6 ui-sans-serif, system-ui, "Segoe UI", Robo
 
 /* header */
 .top { position: sticky; top: 0; z-index: 50; background: rgba(10, 22, 51, .96); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,.08); }
-.bar { display: flex; align-items: center; gap: 1.5rem; min-height: 4.75rem; }
-.logo { display: flex; align-items: center; gap: .5rem; text-decoration: none; color: #fff; font-weight: 800; line-height: 1.1; margin-right: auto; }
-.hex { height: 2.9rem; width: auto; flex: none; margin-right: -.2rem; filter: drop-shadow(0 3px 10px rgba(255,194,14,.3)); }
-.word { position: relative; display: grid; gap: .25rem; padding-left: .2rem; line-height: 1; transform: skewX(-9deg); }
-.word b { font: 900 1.75rem/1 var(--display); text-transform: uppercase; letter-spacing: .01em; color: #fff; -webkit-text-stroke: 4px var(--navy); paint-order: stroke fill; text-shadow: 0 2px 0 rgba(0,0,0,.25); }
-.word i { justify-self: start; padding: .22rem .6rem .22rem .5rem; font: 900 .78rem/1 var(--display); font-style: normal; letter-spacing: .2em; text-transform: uppercase; color: var(--yellow); background: var(--blue-2); border: 1.5px solid #fff; border-radius: 3px; box-shadow: 4px 0 0 -1px var(--yellow), 9px 0 0 -2px var(--yellow); }
+.bar { display: flex; align-items: center; gap: 1.5rem; min-height: 4.25rem; }
+.logo { display: flex; align-items: center; gap: .7rem; text-decoration: none; color: #fff; font-weight: 800; line-height: 1.1; margin-right: auto; }
+.mark { width: 3rem; height: 3.25rem; flex: none; filter: drop-shadow(0 3px 8px rgba(255,194,14,.35)); }
+.word { display: grid; line-height: 1; }
+.word b { font: 900 italic 1.35rem/1 var(--display); text-transform: uppercase; letter-spacing: .03em; }
+.word i { margin-top: .2rem; font: 800 .7rem/1 var(--display); letter-spacing: .22em; text-transform: uppercase; color: var(--yellow); }
 .bar nav { display: flex; gap: .25rem; }
 .bar nav a { padding: .5rem .8rem; border-radius: 8px; color: #d7def0; text-decoration: none; font-weight: 600; font-size: .95rem; }
 .bar nav a:hover { background: rgba(255,255,255,.1); color: #fff; }
@@ -149,10 +149,6 @@ address { font-style: normal; font-weight: 700; font-size: 1.1rem; margin-top: 1
 }
 @media (max-width: 480px) {
   .bar .num { display: none; }
-  .word { position: relative; display: grid; gap: .25rem; padding-left: .2rem; line-height: 1; transform: skewX(-9deg); }
-.word b { font: 900 1.75rem/1 var(--display); text-transform: uppercase; letter-spacing: .01em; color: #fff; -webkit-text-stroke: 4px var(--navy); paint-order: stroke fill; text-shadow: 0 2px 0 rgba(0,0,0,.25); }
-.word i { justify-self: start; padding: .22rem .6rem .22rem .5rem; font: 900 .78rem/1 var(--display); font-style: normal; letter-spacing: .2em; text-transform: uppercase; color: var(--yellow); background: var(--blue-2); border: 1.5px solid #fff; border-radius: 3px; box-shadow: 4px 0 0 -1px var(--yellow), 9px 0 0 -2px var(--yellow); }
-  .hex { height: 2.3rem; }
   .bar { gap: .75rem; }
   .actions .btn { flex: 1 1 100%; }
 }
