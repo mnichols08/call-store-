@@ -28,12 +28,10 @@ body.site { margin: 0; font: 16px/1.6 ui-sans-serif, system-ui, "Segoe UI", Robo
 
 /* header */
 .top { position: sticky; top: 0; z-index: 50; background: rgba(10, 22, 51, .96); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,.08); }
-.bar { display: flex; align-items: center; gap: 1.5rem; min-height: 4.25rem; }
-.logo { display: flex; align-items: center; gap: .7rem; text-decoration: none; color: #fff; font-weight: 800; line-height: 1.1; margin-right: auto; }
-.mark { width: 3rem; height: 3.25rem; flex: none; filter: drop-shadow(0 3px 8px rgba(255,194,14,.35)); }
-.word { display: grid; line-height: 1; }
-.word b { font: 900 italic 1.35rem/1 var(--display); text-transform: uppercase; letter-spacing: .03em; }
-.word i { margin-top: .2rem; font: 800 .7rem/1 var(--display); letter-spacing: .22em; text-transform: uppercase; color: var(--yellow); }
+.bar { display: flex; align-items: center; gap: 1.5rem; min-height: 4.75rem; }
+.logo { display: flex; align-items: center; gap: .5rem; text-decoration: none; color: #fff; font-weight: 800; line-height: 1.1; margin-right: auto; }
+.hex { height: 2.9rem; width: auto; flex: none; margin-right: -.2rem; filter: drop-shadow(0 3px 10px rgba(255,194,14,.3)); }
+.wordmark { width: 14.5rem; height: auto; flex: none; filter: drop-shadow(0 3px 10px rgba(255,194,14,.25)); }
 .bar nav { display: flex; gap: .25rem; }
 .bar nav a { padding: .5rem .8rem; border-radius: 8px; color: #d7def0; text-decoration: none; font-weight: 600; font-size: .95rem; }
 .bar nav a:hover { background: rgba(255,255,255,.1); color: #fff; }
@@ -149,6 +147,8 @@ address { font-style: normal; font-weight: 700; font-size: 1.1rem; margin-top: 1
 }
 @media (max-width: 480px) {
   .bar .num { display: none; }
+  .wordmark { width: 9.5rem; }
+  .hex { height: 2.3rem; }
   .bar { gap: .75rem; }
   .actions .btn { flex: 1 1 100%; }
 }
