@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: manager pages polish
+- Activity shows plain words ("Call taken", "Hours changed") instead of event codes; the code is still in the tooltip.
+- Hours: form labels sit above their fields, Save is a proper blue button, and the week table fills the card on phones.
+
 ## Unreleased: customer portal look
 - Portal pages and private link pages now match the public page: navy header with the logo, light cards, blue buttons, no truck photo behind the text. Styles live in `public/customer.css`; `layout()` takes `customer: true`.
 
