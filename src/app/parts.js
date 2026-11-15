@@ -76,6 +76,17 @@ export function createParts({ db, audit, now, ai, limits = { hourly: 30, daily: 
     return ids;
   }
 
+  /** What was asked, tidied; or why it can't be answered. Shared by `find` and `needsAi`. */
+  function normalize({ vehicle: rawVehicle, term: rawTerm, number: rawNumber, measure = '' }) {
+    const vehicle = vehicleOf(rawVehicle);
+    let term = clip(measure || rawTerm, 100).trim();
+    let number = clip(rawNumber, 40).trim();
+    if (!measure && !number && looksLikePartNumber(term) && !(vehicle.make && vehicle.model && /\s/.test(term))) [number, term] = [term, ''];
+    if (!term && !number) return { error: 'empty' };
+    if (!number && !measure && !(vehicle.year && vehicle.make && vehicle.model)) return { error: 'vehicle' };
+    return { vehicle, term, number };
+  }
+
   return {
     aiEnabled: () => ai.enabled,
 
@@ -87,12 +98,9 @@ export function createParts({ db, audit, now, ai, limits = { hourly: 30, daily: 
     async find(who, { vehicle: rawVehicle, term: rawTerm, number: rawNumber, measure = '', fresh = false, showBad = false, callId = null }) {
       const no = deny(who, 'parts.find');
       if (no) return no;
-      const vehicle = vehicleOf(rawVehicle);
-      let term = clip(measure || rawTerm, 100).trim();
-      let number = clip(rawNumber, 40).trim();
-      if (!measure && !number && looksLikePartNumber(term) && !(vehicle.make && vehicle.model && /\s/.test(term))) [number, term] = [term, ''];
-      if (!term && !number) return { error: 'empty' };
-      if (!number && !measure && !(vehicle.year && vehicle.make && vehicle.model)) return { error: 'vehicle' };
+      const asked = normalize({ vehicle: rawVehicle, term: rawTerm, number: rawNumber, measure });
+      if (asked.error) return asked;
+      const { vehicle, term, number } = asked;
 
       let known = recall({ vehicle, term, number });
       let usable = known.filter((a) => !isBad(a));
@@ -126,8 +134,21 @@ export function createParts({ db, audit, now, ai, limits = { hourly: 30, daily: 
       const fromMemory = !search.ai && results.length > 0;
       db.prepare('INSERT INTO part_searches (call_id, email, vehicle, part_term, query_number, answer_ids, from_memory, ai_used, ai_error, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(callId, who.email, JSON.stringify(vehicle), term, numberKey(number), JSON.stringify(results.map((r) => r.id)), fromMemory ? 1 : 0, search.ai ? 1 : 0, search.aiError, now());
-      if (callId != null) changed({ type: 'call', id: callId }); // anyone watching this call sees the search
+      if (callId != null) changed({ type: 'call', id: callId, by: who.email, why: 'parts' }); // anyone watching this call sees the search
       return { ok: true, vehicle, term, number, results, hidden, fromMemory, aiAsked: search.ai, aiError: search.aiError, note: search.note, canAskAi: ai.enabled };
+    },
+
+    /**
+     * Cheap check before `find`: is the question answerable, and would answering it ask the AI
+     * (which can take a while, so the page streams that part)? Asks nothing and saves nothing.
+     */
+    needsAi(who, { vehicle, term, number, measure = '', fresh = false }) {
+      const no = deny(who, 'parts.find');
+      if (no) return no;
+      const asked = normalize({ vehicle, term, number, measure });
+      if (asked.error) return asked;
+      const usable = recall(asked).filter((a) => !isBad(a));
+      return { ok: true, ai: Boolean(ai.enabled && (!usable.length || fresh) && !aiAllowance(who)) };
     },
 
     /** The last lookup made on a call, shown again with today's votes. */

@@ -35,6 +35,7 @@ new EventSource('/events').addEventListener('message', (message) => {
   if (callForm) {
     if (event.type === 'watch' && String(event.id) === callId) { window.refreshWatchers?.(); return; }
     if (event.type !== 'call' || String(event.id) !== callId) return;
+    if (event.why === 'parts' && event.by === callForm.dataset.me) return; // my own search, already on my page
     if (window.callBusy?.()) return;
     banner();
     return;

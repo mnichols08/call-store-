@@ -1,0 +1,48 @@
+<!--
+  What the part finder came back with: each answer with where it came from, who has confirmed it,
+  and buttons to put it on the call or say whether it fit. `data` can be a promise: the saved
+  answers and the rest of the page are already on screen while the AI is still looking, and this
+  fills in when it has an answer (a web search can take up to half a minute).
+-->
+<script>
+  const votes = [{ value: "worked", label: "It worked" }, { value: "failed", label: "Didn’t work" }, { value: "wrong-fit", label: "Wrong fit" }]
+</script>
+<style>
+  :host { display: block; }
+  .waiting { opacity: 0.8; }
+</style>
+<answer-list call-id="" closed={false} data={null}>
+  <div class="wrap" aria-live="polite">
+    <zb-await value={data}>
+      <p class="waiting muted" role="status">Asking the AI. This can take up to half a minute, and you can keep working. The answer will appear here.</p>
+      <zb-then as="found">
+        <ul zb-if={found?.answers?.length} class="plain answers">
+          <zb-each items={found?.answers ?? []} as="a" key={a.id}>
+            <li class="answer"><div><strong>{a.brand} {a.partNumber}</strong>
+              <span zb-if={a.kind === "confirmed"} class="tag good">Confirmed by the shop · {a.worked} {a.worked === 1 ? "person" : "people"}</span>
+              <span zb-if={a.kind === "staff"} class="tag good">Added by staff</span>
+              <span zb-if={a.kind === "ai"} class="tag warn">Suggested by AI · not checked yet</span>
+              <span zb-if={a.failed} class="tag bad">{a.failed} said it didn’t fit</span>
+              <div zb-if={a.description}>{a.description}</div>
+              <small zb-if={a.notes}>{a.notes}</small>
+              <small zb-if={a.sourceUrl}><a href={a.sourceUrl} target="_blank" rel="noopener noreferrer">Where it was found</a></small></div>
+              <div zb-if={!closed} class="row vote">
+                <form method="post" action={`/calls/${callId}/parts/add`}><input type="hidden" name="answer" value={a.id}><button>Put on call</button></form>
+                <zb-each items={votes} as="v" key={v.value}>
+                  <form method="post" action={`/parts/${a.id}/feedback`}><input type="hidden" name="call" value={callId}><input type="hidden" name="result" value={v.value}>
+                    <button class={a.mine === v.value ? "chosen" : ""} aria-pressed={a.mine === v.value ? "true" : "false"}>{v.label}</button></form>
+                </zb-each>
+              </div></li>
+          </zb-each>
+        </ul>
+        <p zb-else class="muted">Nothing found.</p>
+        <p zb-if={found?.origin === "memory"} class="muted">From what the shop already knows. No AI used.</p>
+        <p zb-if={found?.origin === "ai"} class="muted">Asked the AI, and saved what it said. Check it before you quote it.</p>
+        <p zb-if={found?.problem} class="muted">{found?.problem}</p>
+        <form zb-if={found?.again && !closed} method="post" action={`/calls/${callId}/parts/find`}><input type="hidden" name="term" value={found?.term}><input type="hidden" name="fresh" value="1"><button class="link">Ask the AI again</button></form>
+        <small zb-if={found?.when} class="muted">{found?.when}</small>
+      </zb-then>
+      <zb-catch as="error"><p class="muted" role="alert">{error.message}</p></zb-catch>
+    </zb-await>
+  </div>
+</answer-list>

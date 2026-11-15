@@ -45,6 +45,16 @@ Things learned:
 8. A document that streams loads its `load` event only when the last region has arrived, so browser tooling that waits for `load` (Playwright's `goto`) sees the finished page. Use `wait_until='commit'` to watch the placeholder.
 9. Zubra's output for text built from two interpolations (`{m.make} {m.model}`) comes out as one text run (`Ford F-150`), so tests can match it as written.
 
+### The AI part search
+
+A search that has to ask the AI is the slowest thing in the app (a web search can take 10 to 30 seconds). The form post only checks it (`parts.needsAi`: is it answerable, and would it ask the AI?) and redirects at once; the call page that follows runs the search as a promise and the `answer-list` component fills in when it's done. Saved answers never wait: when the shop already knows the answer, nothing streams and the page is ordinary.
+
+- **A GET never spends AI.** The pending search is held in memory for two minutes, for the person who posted it, and used once. A reload shows what was saved; a link someone else sends can't start a search.
+- **Your own search doesn't nag you.** The "a coworker just changed this call" banner now ignores part searches made by the person looking (`why: 'parts'`, `by` on the event); coworkers watching still see it.
+- Measured in Chrome with the AI made to take 3 s: the page and "Asking the AI…" at 0.2 s, the answers at 3.1 s, no banner, no console errors, and the vote buttons on the streamed cards worked.
+- The AI's text reaches the page two ways, both inert: as JSON in a nonce'd script (where `<` is escaped) and as escaped text in the card. The old test that grepped the raw page for `onerror=` now looks at the markup and checks the carried value is escaped.
+- `AI_TIMEOUT_MS` (45 s) bounds the wait; a hang or a failure shows plain words and never the key or the error.
+
 `test/streaming.test.js` covers all of the above, including time to the first piece (under 400 ms against a 700 ms lookup) and that the rest does wait for it.
 
 ## Speed and memory (this machine, production mode)

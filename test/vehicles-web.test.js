@@ -118,7 +118,11 @@ test('parts finder: AI once, memory after, feedback buttons, AI text escaped, ad
   assert.match(first.text, /BK 777/);
   assert.match(first.text, /Suggested by AI/);
   assert.ok(!/<img src=x/.test(first.text), 'AI text can’t inject markup');
-  assert.ok(!/onerror=alert/.test(first.text.replace(/&lt;[^]*?&gt;/g, '')), 'and no live handler survives');
+  // The streamed value travels as JSON in a script, where `<` is escaped and nothing can run; the markup built from it is escaped too.
+  const data = [...first.text.matchAll(/<script nonce="[^"]+">([^]*?)<\/script>/g)].map((m) => m[1]).filter((t) => t.includes('BK 777'));
+  assert.ok(data.length && data.every((t) => !t.includes('<img') && /\\u003c|\\x3c/i.test(t)), 'the carried value has no raw < in it');
+  const markup = first.text.replace(/<script[^]*?<\/script>/g, '');
+  assert.ok(!/onerror=alert/.test(markup.replace(/&lt;[^]*?&gt;/g, '')), 'and no live handler survives');
 
   const call2 = (await olive('/calls', { method: 'POST', form: {} })).location;
   await olive(`${call2}/vehicle/use`, { method: 'POST', form: { year: '2008', make: 'Ford', model: 'F-150' } });

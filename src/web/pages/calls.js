@@ -214,7 +214,7 @@ async function workspace(ctx, got) {
   ${callPortalPanel(ctx, got, closed)}
   <section class="panel"><h2>Caller</h2>${lookup}</section>
   ${vehiclePanel}
-  <form method="post" action="/calls/${call.id}/save" id="call-form" data-call="${call.id}" data-revision="${call.revision}" autocomplete="off">
+  <form method="post" action="/calls/${call.id}/save" id="call-form" data-call="${call.id}" data-me="${esc(who.email)}" data-revision="${call.revision}" autocomplete="off">
     <input type="hidden" name="revision" value="${call.revision}">
     <section class="panel stack"><h2>The request</h2>
       ${field(page, { label: 'What do they need?', name: 'request', value: call.request, rows: 3, ...lock })}

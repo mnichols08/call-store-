@@ -2,6 +2,7 @@
 
 ## Unreleased — streaming
 - The call page is sent at once; the vehicle matches stream in when the lookup finishes (Zubra promise props). Slow or failing lookups stop waiting after `LOOKUP_TIMEOUT_MS` and show a plain message. See docs/zubra-findings.md.
+- The part finder's AI answers stream in too: saved answers and the page show at once, "Asking the AI…" holds the place. A reload never asks the AI again.
 
 ## Unreleased — customer portal
 - Customers join by invite (QR code or email), confirm by one-time email link, and see their business's requests and updates. See docs/portal.md.

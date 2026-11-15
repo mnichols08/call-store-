@@ -1,12 +1,37 @@
 // Vehicle lookup and the parts finder, on a call. Everything works as plain forms; public/vehicle.js
 // only makes the pickers quicker. The shop's saved answers always come first.
 import { esc, ago } from '../html.js';
-import { say } from '../ui.js';
+import { answerList, say } from '../ui.js';
+import { bounded } from '../stream.js';
 import { describeVehicle } from '../../domain/vehicle.js';
 import { can } from '../../domain/permissions.js';
 
 const KEYS = ['year', 'make', 'model', 'engine', 'drivetrain'];
 const pick = (f) => Object.fromEntries(KEYS.map((k) => [k, (f.get(k) ?? '').trim()]));
+
+// A search that has to ask the AI is started by the form post and run by the page that follows, so
+// the page can be sent first and the answer streamed in. Held here for a couple of minutes, once.
+const pendingFinds = new Map();
+const PENDING_MS = 2 * 60_000;
+const pendingKey = (callId, who) => `${callId}:${who.email}`;
+function takePending(ctx, callId) {
+  const k = pendingKey(callId, ctx.who);
+  const p = pendingFinds.get(k);
+  pendingFinds.delete(k);
+  return p && ctx.now() - p.at < PENDING_MS ? p.params : null;
+}
+
+/** The finder's result as plain data for the answer-list component (both for a fresh search and a saved one). */
+export function answerData(ctx, s, { problem = '' } = {}) {
+  return {
+    answers: (s.results ?? []).map((a) => ({ id: a.id, brand: a.brand, partNumber: a.partNumber, description: a.description ?? '', notes: a.notes ?? '', sourceUrl: a.sourceUrl ?? '', kind: a.confirmed ? 'confirmed' : a.source === 'staff' ? 'staff' : 'ai', worked: a.worked ?? 0, failed: a.failed ?? 0, mine: a.mine ?? '' })),
+    origin: s.aiAsked ? 'ai' : s.fromMemory ? 'memory' : '',
+    problem: problem || (s.aiError && !s.aiAsked ? say(s.aiError) : ''),
+    again: Boolean(s.canAskAi && !s.aiAsked),
+    term: s.term || s.number || '',
+    when: ago(s.at ?? ctx.now(), ctx.now()),
+  };
+}
 
 export function vehicleRoutes(router) {
   // ------------------------------------------------------------ pickers (JSON, for the page's script)
@@ -68,11 +93,20 @@ export function vehicleRoutes(router) {
     const f = ctx.form;
     const measure = f.get('measure') === '1' ? ctx.app.details.get(ctx.who, id).details?.key ?? '' : '';
     if (f.get('measure') === '1' && !measure) return ctx.redirect(`/calls/${id}#details`, { problem: 'Fill in all the measurements first.' });
-    const result = await ctx.app.parts.find(ctx.who, {
+    const params = {
       measure,
       vehicle: { year: a.year, make: a.make, model: a.model, engine: a.engine, drivetrain: a.drivetrain },
       term: f.get('term') ?? '', number: f.get('number') ?? '', fresh: f.get('fresh') === '1', showBad: f.get('showBad') === '1', callId: id,
-    });
+    };
+    const need = ctx.app.parts.needsAi(ctx.who, params);
+    if (need.error) return ctx.redirect(`/calls/${id}#parts`, { problem: say(need.error) });
+    if (need.ai) {
+      // The AI can take a while: the next page is sent at once and the answer streams into it.
+      for (const [k, v] of pendingFinds) if (ctx.now() - v.at > PENDING_MS) pendingFinds.delete(k);
+      pendingFinds.set(pendingKey(id, ctx.who), { params, at: ctx.now() });
+      return ctx.redirect(`/calls/${id}#parts`);
+    }
+    const result = await ctx.app.parts.find(ctx.who, params);
     return ctx.redirect(`/calls/${id}#parts`, result.error ? { problem: say(result.error) } : result.aiError && !result.results.length ? { problem: say(result.aiError) } : {});
   });
 
@@ -199,25 +233,24 @@ export async function matchData(ctx, vq, vy) {
 export function partsPanel(ctx, got, closed) {
   const callId = got.call.id;
   const a = got.call.application ?? {};
+  const pending = can(ctx.who, 'parts.find') ? takePending(ctx, callId) : null;
   const last = ctx.app.parts.lastForCall(ctx.who, callId).search;
   const hasVehicle = a.year && a.make && a.model;
   const canFind = can(ctx.who, 'parts.find');
   if (!canFind) return '';
-  const results = last?.results ?? [];
   const form = closed ? '' : `<form method="post" action="/calls/${callId}/parts/find" class="row"><label class="sr" for="pt">Part, or part number to cross-reference</label>
-    <input id="pt" name="term" value="${esc(last?.term || last?.number || got.call.part_numbers.split(/[,\n;]/)[0]?.trim() || '')}" placeholder="Part (water pump) or a part number" required><button>Find</button></form>
+    <input id="pt" name="term" value="${esc(pending?.term || last?.term || last?.number || got.call.part_numbers.split(/[,\n;]/)[0]?.trim() || '')}" placeholder="Part (water pump) or a part number" required><button>Find</button></form>
     ${hasVehicle ? '' : '<p class="muted">Part numbers work without a vehicle. For a part by name, add the vehicle first.</p>'}`;
   const teach = closed || !can(ctx.who, 'parts.teach') ? '' : `<details><summary>Add a number you know is right</summary><form method="post" action="/calls/${callId}/parts/teach" class="stack">
     <div class="two"><label>Part<input name="term" placeholder="water pump" required></label><label>Brand<input name="brand" placeholder="Balkamp" required></label></div>
     <div class="two"><label>Part number<input name="part_number" required></label><label>Description<input name="description"></label></div>
     <p class="muted">It’s saved for ${esc(describeVehicle(a) || 'this vehicle')} and shown first next time.</p><button>Save</button></form></details>`;
   let body = '';
-  if (last) {
-    const origin = last.fromMemory ? '<p class="muted">From what the shop already knows. No AI used.</p>' : last.aiAsked ? '<p class="muted">Asked the AI, and saved what it said. Check it before you quote it.</p>' : '';
-    const problem = last.aiError && !last.aiAsked ? `<p class="muted">${esc(say(last.aiError))}</p>` : '';
-    body = `${results.length ? `<ul class="plain answers">${results.map((r) => answerCard(callId, r, closed)).join('')}</ul>` : '<p class="muted">Nothing found.</p>'}${origin}${problem}
-      ${closed || !last.canAskAi || last.aiAsked ? '' : `<form method="post" action="/calls/${callId}/parts/find"><input type="hidden" name="term" value="${esc(last.term || last.number)}"><input type="hidden" name="fresh" value="1"><button class="link">Ask the AI again</button></form>`}
-      <small class="muted">${ago(last.at, ctx.now())}</small>`;
+  if (pending) {
+    const work = ctx.app.parts.find(ctx.who, pending).then((r) => answerData(ctx, r, { problem: r.error ? say(r.error) : '' }));
+    body = answerList(ctx.page, { callId, closed, data: bounded(() => work, { ms: ctx.config.aiTimeoutMs ?? 45_000, message: 'The AI is taking too long. Try again in a minute.', onError: (e) => ctx.log?.warn('part lookup failed', { message: e.message }) }) });
+  } else if (last) {
+    body = answerList(ctx.page, { callId, closed, data: answerData(ctx, last) });
   }
   return `<section class="panel" id="parts"><h2>Find the part</h2>${form}${body}${teach}</section>`;
 }
