@@ -9,6 +9,8 @@ Identity is the signed-in account (`kit/staff`); every action is attributed to t
 | Add and edit customers, add contacts | ✓ | ✓ | ✓ |
 | Add an item | ✓ | ✓ | ✓ |
 | Nudge a coworker, print a call | ✓ | ✓ | ✓ |
+| Look up a vehicle, find parts, say whether a part worked, teach a part number | ✓ | ✓ | ✓ |
+| See AI use and part-finder statistics | | ✓ | ✓ |
 | Hand a call back that someone else holds, assign calls | | ✓ | ✓ |
 | Edit or retire an item | | ✓ | ✓ |
 | Mark a customer inactive | | ✓ | ✓ |

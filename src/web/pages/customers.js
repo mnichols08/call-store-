@@ -68,6 +68,9 @@ ${list.length ? `<table class="grid"><thead><tr><th>Name</th><th>Account</th><th
     const c = got.customer;
     const calls = c.calls.map((x) => `<tr><td><a href="/calls/${x.id}">#${x.id}</a></td><td>${esc(x.request || x.part_numbers || 'No request noted')}</td>
       <td>${badge(page, 'outline', OUTCOMES[x.outcome] ?? STATUS_LABEL[x.status])}</td><td class="muted">${esc(when(x.created_at, config.zone))}</td></tr>`).join('');
+    const vs = ctx.app.vehicles.forCustomer(who, c.id).vehicles ?? [];
+    const vehiclesPanel = `<section class="panel"><h2>Vehicles</h2>${vs.length ? `<ul class="plain">${vs.map((v) => `<li><span>${esc([v.year, v.make, v.model, v.engine, v.drivetrain].filter(Boolean).join(' '))}${v.vin ? `<small>VIN ${esc(v.vin)}</small>` : ''}</span>
+      ${can(who, 'vehicle.save') ? `<form method="post" action="/customers/${c.id}/vehicles/${v.id}/remove"><button class="link" aria-label="Remove this vehicle">Remove</button></form>` : ''}</li>`).join('')}</ul>` : '<p class="muted">None saved. A VIN looked up on one of their calls is kept here.</p>'}</section>`;
     return ctx.send(c.name, `
 <div class="head"><div><h1>${esc(c.name)}</h1><p class="muted">${c.kind === 'organization' ? 'Business' : 'Person'}${c.account_no ? ` · Account ${esc(c.account_no)}` : ''} · added by ${esc(people.name(c.created_by))}</p></div>
 <div class="row">${can(who, 'call.create') ? `<form method="post" action="/calls"><input type="hidden" name="customer" value="${c.id}">${button(page, 'Start a call for them', { variant: 'primary' })}</form>` : ''}
@@ -77,6 +80,7 @@ ${can(who, 'customer.edit') ? customerForm(page, c, `/customers/${c.id}`) : `<se
 </div><aside class="side-col">
 <section class="panel"><h2>Contacts</h2>${c.contacts.length ? `<ul class="plain">${c.contacts.map((k) => `<li><span><strong>${esc(k.name)}</strong> ${esc(k.title)}<small>${esc(k.phone)}${k.ext ? ` x${esc(k.ext)}` : ''}</small></span></li>`).join('')}</ul>` : '<p class="muted">Nobody listed.</p>'}
 ${can(who, 'customer.edit') ? `<form method="post" action="/customers/${c.id}/contacts" class="stack">${field(page, { label: 'Name', name: 'name', required: true })}${field(page, { label: 'Title', name: 'title' })}<div class="two">${field(page, { label: 'Phone', name: 'phone', type: 'tel' })}${field(page, { label: 'Ext.', name: 'ext' })}</div>${button(page, 'Add contact', { variant: 'outline', size: 'sm' })}</form>` : ''}</section>
+${vehiclesPanel}
 <section class="panel"><h2>Call history</h2>${calls ? `<table class="grid compact"><tbody>${calls}</tbody></table>` : '<p class="muted">No calls yet.</p>'}</section>
 </aside></div>`, { active: 'customers' });
   });

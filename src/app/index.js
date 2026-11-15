@@ -6,13 +6,19 @@ import { createCustomers } from './customers.js';
 import { createItems } from './items.js';
 import { createNudges } from './nudges.js';
 import { createStats } from './stats.js';
+import { createVehicles } from './vehicles.js';
+import { createParts } from './parts.js';
+import { createVehicleSources } from '../infra/vehicle-sources.js';
+import { createAi } from '../infra/ai.js';
 
 /**
  * `changed(event)` is told after something committed, so the web layer can tell open pages.
  * `now` is a clock a test can set.
  */
-export function createApp({ db, now = Date.now, changed = () => {} }) {
+export function createApp({ db, now = Date.now, changed = () => {}, fetcher = globalThis.fetch, ai: aiOptions = {}, limits, log }) {
   const audit = createAudit(db, now);
   const shared = { db, audit, now, changed };
-  return { audit, customers: createCustomers(shared), items: createItems(shared), calls: createCalls(shared), nudges: createNudges(shared), stats: createStats(shared) };
+  const sources = createVehicleSources({ db, fetcher, now });
+  const ai = aiOptions.suggest ? aiOptions : createAi({ ...aiOptions, fetcher, log });
+  return { audit, vehicles: createVehicles({ ...shared, sources, log }), parts: createParts({ ...shared, ai, limits, log }), customers: createCustomers(shared), items: createItems(shared), calls: createCalls(shared), nudges: createNudges(shared), stats: createStats(shared) };
 }

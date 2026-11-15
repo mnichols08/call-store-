@@ -4,6 +4,7 @@ import { badge, button, callBadges, empty, field, say, select } from '../ui.js';
 import { OUTCOMES, PRIORITIES, STATUS_LABEL, canMove } from '../../domain/call.js';
 import { can } from '../../domain/permissions.js';
 import { formatPhone } from '../../domain/phone.js';
+import { matchList, partsPanel, vehiclePanels } from './vehicles.js';
 
 const VIEWS = [
   ['active', 'All open'],
@@ -72,10 +73,10 @@ ${result.calls.length
   });
 
   // ---------------------------------------------------------------- the workspace
-  router.get('/calls/:id', (ctx) => {
+  router.get('/calls/:id', async (ctx) => {
     const got = ctx.app.calls.get(ctx.who, Number(ctx.params.id));
     if (got.error) return ctx.notFound();
-    return ctx.send(`Call #${got.call.id}`, workspace(ctx, got), { active: 'calls', live: true, script: '<script src="/assets/call.js" defer></script>' });
+    return ctx.send(`Call #${got.call.id}`, await workspace(ctx, got), { active: 'calls', live: true, script: '<script src="/assets/call.js" defer></script><script src="/assets/vehicle.js" defer></script>' });
   });
 
   // The ticket on paper: everything about the call on one sheet.
@@ -128,7 +129,7 @@ ${result.calls.length
   });
 }
 
-function workspace(ctx, got) {
+async function workspace(ctx, got) {
   const { page, who, people, config, url, app } = ctx;
   const { call, customer, items, events, earlier } = got;
   const closed = call.status === 'closed';
@@ -177,6 +178,13 @@ function workspace(ctx, got) {
       ${!finished && staffOptions ? `<form method="post" action="/calls/${call.id}/nudge" class="stack nudge-form"><div class="row"><label class="sr" for="nudge-to">Nudge</label><select id="nudge-to" name="to">${staffOptions}</select><label class="sr" for="nudge-msg">Message</label><input id="nudge-msg" name="message" maxlength="200" placeholder="Optional note"></div>${button(page, 'Nudge them', { variant: 'outline', size: 'sm' })}</form>` : ''}
       ${can(who, 'call.assign') && !finished ? `<form method="post" action="/calls/${call.id}/action" class="row"><input type="hidden" name="action" value="assign"><label class="sr" for="assign-to">Assign to</label><select id="assign-to" name="to"><option value="">Nobody</option>${people.list().map((p) => `<option value="${esc(p.email)}"${p.email === call.assignee ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>${button(page, 'Assign', { variant: 'outline', size: 'sm' })}</form>` : ''}`;
 
+  const vp = vehiclePanels(ctx, got, closed);
+  const matches = vp.deferMatch ? await matchList(ctx, call.id, vp.deferMatch.vq, vp.deferMatch.vy) : '';
+  const vehiclePanel = vp.lookupHtml || vp.savedHtml ? `<section class="panel stack" id="vehicle"><h2>Vehicle lookup</h2>
+    ${vp.vehicle ? `<p>On this call: <strong>${esc(vp.vehicle)}</strong></p>` : '<p class="muted">Read the VIN, find it by year and model, or pick it by hand. The fields below fill in.</p>'}
+    ${vp.lookupHtml}${matches}${vp.savedHtml}</section>` : '';
+  const partsHtml = partsPanel(ctx, got, closed);
+
   const itemTerm = url.searchParams.get('item') ?? '';
   const itemHits = itemTerm ? app.items.list(who, { q: itemTerm, limit: 6 }).items ?? [] : [];
   const itemPanel = `<section class="panel"><h2>Items</h2>
@@ -196,6 +204,7 @@ function workspace(ctx, got) {
 <div class="workspace">
 <div class="main-col">
   <section class="panel"><h2>Caller</h2>${lookup}</section>
+  ${vehiclePanel}
   <form method="post" action="/calls/${call.id}/save" id="call-form" data-call="${call.id}" data-revision="${call.revision}" autocomplete="off">
     <input type="hidden" name="revision" value="${call.revision}">
     <section class="panel stack"><h2>The request</h2>
@@ -215,6 +224,7 @@ function workspace(ctx, got) {
 <aside class="side-col">
   <section class="panel"><h2>Work it</h2>${actions}</section>
   ${outcomeForm}
+  ${partsHtml}
   ${itemPanel}
   ${timeline}
 </aside>

@@ -47,13 +47,19 @@ ${stat(page, { label: `Picked up in ${config.pickupTargetMinutes} min`, value: p
 ${stat(page, { label: 'Longest waiting now', value: t.longestWaitingNow ? duration(t.longestWaitingNow.ms) : 'None' })}</div>
 ${t.people.length ? `<section class="panel"><h2>By person</h2><table class="grid compact"><thead><tr><th>Who</th><th>Finished</th><th>Median time to finish</th></tr></thead><tbody>${t.people.map((p) => `<tr><td>${esc(ctx.people.name(p.email))}</td><td>${p.finished}</td><td>${duration(p.handleMedian)}</td></tr>`).join('')}</tbody></table></section>` : ''}
 ${t.neverPickedUp ? `<p class="panel muted">${t.neverPickedUp} call${t.neverPickedUp === 1 ? ' was' : 's were'} never picked up by anyone in this range.</p>` : ''}`;
+    const u = app.parts.usage(ctx.who);
+    const partsUse = u.ok ? `<h2 class="section">Part finder</h2>
+<div class="stats">${stat(page, { label: 'Lookups answered from saved answers (30 days)', value: u.searches.n ? `${Math.round((u.searches.memory / u.searches.n) * 100)}%` : '—' })}${stat(page, { label: 'AI lookups today', value: `${u.day.calls} of ${u.limits.daily}` })}
+${stat(page, { label: 'Answers the shop has confirmed', value: String(u.answers.confirmed) })}${stat(page, { label: 'Answers staff taught it', value: String(u.answers.taught) })}</div>
+<p class="muted">${u.enabled ? `AI lookups use ${esc(u.model)}. This month: ${u.month.calls} lookups, ${u.month.searches} web searches, ${u.month.input + u.month.output} tokens, ${u.month.failed} failed.` : 'AI lookups are off (no key set). Only saved answers are shown.'}</p>` : '';
     return ctx.send('Reports', `
 <div class="head"><h1>Reports</h1><div class="row"><button type="button" class="btn" data-print>Print</button><a class="btn" href="/reports.csv?days=${range.days}">Calls per day (CSV)</a><a class="btn" href="/reports/timing.csv?days=${range.days}">Timing (CSV)</a></div></div>
 <nav class="tabs" aria-label="Range">${[7, 14, 30, 90].map((d) => `<a href="/reports?days=${d}"${d === range.days ? ' aria-current="true"' : ''}>Last ${d} days</a>`).join('')}</nav>
 <div class="workspace"><div class="main-col"><section class="panel"><h2>Calls taken per day</h2>
 ${rows.length ? `<ol class="bars" aria-label="Calls per day">${rows.map((r) => `<li><span class="day">${esc(r.start.slice(5))}</span><span class="bar" style="--w:${Math.round((r.count / max) * 100)}%"></span><span class="n">${r.count}</span></li>`).join('')}</ol>` : empty(page, 'No calls in this range')}</section></div>
 <aside class="side-col"><section class="panel"><h2>What came of them</h2>${outcomes.length ? `<ul class="plain">${outcomes.map(([label, count]) => `<li><span>${esc(label)}</span><span>${count}</span></li>`).join('')}</ul>` : '<p class="muted">Nothing finished in this range.</p>'}</section></aside></div>
-${timing}`, { active: 'reports' });
+${timing}
+${partsUse}`, { active: 'reports' });
   });
 
   router.get('/reports.csv', (ctx) => {

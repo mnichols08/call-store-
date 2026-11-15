@@ -9,6 +9,7 @@ import { createZubra } from '@zubra/server';
 import { createStaff } from '../../vendor/kit/staff/index.js';
 import { clientAddress, staffPages } from '../../vendor/kit/staff/pages.js';
 import { createNotices } from '../../vendor/kit/notice/index.js';
+import { vehicleRoutes } from './pages/vehicles.js';
 import { createApp } from '../app/index.js';
 import { sqliteStore } from '../infra/documents-store.js';
 import { createLogger } from '../infra/log.js';
@@ -29,7 +30,7 @@ const PUBLIC = join(here, '..', '..', 'public');
 const TYPES = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.webp': 'image/webp' };
 const MAX_BODY = 256 * 1024;
 
-export async function createWeb({ db, config, now = Date.now, log = createLogger({ requests: config.logRequests }), sendPush }) {
+export async function createWeb({ db, config, now = Date.now, log = createLogger({ requests: config.logRequests }), sendPush, fetcher, ai }) {
   const store = sqliteStore(db);
   const staff = createStaff({ store, roles: ROLES, name: 'call-store', secure: config.production });
   const notices = createNotices({ secret: config.secret });
@@ -44,6 +45,10 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   const app = createApp({
     db,
     now,
+    log,
+    fetcher,
+    ai: ai ?? { apiKey: config.ai?.apiKey, model: config.ai?.model, webSearch: config.ai?.webSearch, domains: config.ai?.domains },
+    limits: { hourly: config.ai?.hourly ?? 30, daily: config.ai?.daily ?? 200 },
     changed(event) {
       if (event.type === 'nudge') {
         const text = event.message || (event.callId ? `Can you look at call #${event.callId}?` : 'Can you take a look?');
@@ -73,6 +78,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   itemRoutes(router);
   overviewRoutes(router);
   nudgeRoutes(router);
+  vehicleRoutes(router);
 
   const signInLimit = createLimiter({ max: 20, windowMs: 60_000, now });
 
@@ -245,7 +251,12 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
       send(title, body, { active = '', live = false, script = '' } = {}, status = 200) {
         html(res, status, page.finish(layout({ title, who, active, body, notice, business: config.business, live, script })), { 'content-security-policy': res.csp });
       },
-      redirect: (path, { done, problem } = {}) => redirect(res, notices.sign(done || problem ? `${path}${path.includes('?') ? '&' : '?'}${done ? 'done' : 'problem'}=${encodeURIComponent(done || problem)}` : path)),
+      // A "#section" goes after the query, or the browser would treat the message as part of the fragment.
+      redirect(path, { done, problem } = {}) {
+        const [where, hash = ''] = path.split('#');
+        const signed = notices.sign(done || problem ? `${where}${where.includes('?') ? '&' : '?'}${done ? 'done' : 'problem'}=${encodeURIComponent(done || problem)}` : where);
+        return redirect(res, hash ? `${signed}#${hash}` : signed);
+      },
       print(title, body, back) {
         html(res, 200, page.finish(printLayout({ title, body, business: config.business, back })), { 'content-security-policy': res.csp });
       },

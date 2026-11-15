@@ -24,6 +24,15 @@ export const config = Object.freeze({
   logRequests: (process.env.LOG_REQUESTS ?? (production ? 'true' : 'false')) === 'true',
   // Set to expose /metrics (Prometheus format) to a scraper sending this bearer token.
   metricsToken: process.env.METRICS_TOKEN ?? '',
+  // Part-number suggestions from Claude. Without a key the finder still works from what the shop has saved.
+  ai: Object.freeze({
+    apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+    model: process.env.AI_MODEL ?? 'claude-haiku-5-5',
+    webSearch: (process.env.AI_WEB_SEARCH ?? 'true') === 'true',
+    domains: (process.env.AI_SEARCH_DOMAINS ?? '').split(',').map((d) => d.trim()).filter(Boolean),
+    hourly: Number(process.env.AI_HOURLY_LIMIT ?? 30),
+    daily: Number(process.env.AI_DAILY_LIMIT ?? 200),
+  }),
 });
 
 export function checkConfig(c = config) {
