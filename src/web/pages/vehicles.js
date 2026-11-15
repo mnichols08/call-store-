@@ -98,16 +98,23 @@ export function vehicleRoutes(router) {
     const answer = ctx.app.parts.get(ctx.who, Number(ctx.form.get('answer')));
     if (answer.error) return ctx.redirect(back, { problem: say(answer.error) });
     const { brand, part_number: number, description } = answer.raw;
-    const sku = `${brand} ${number}`.toUpperCase();
-    let item = (ctx.app.items.list(ctx.who, { q: sku, limit: 5 }).items ?? []).find((i) => i.sku.toLowerCase() === sku.toLowerCase());
-    if (!item) {
-      const made = ctx.app.items.create(ctx.who, { sku, name: description || `${brand} ${number}`, brand, price: '' });
-      if (made.error) return ctx.redirect(back, { problem: say(made.error) });
-      item = { id: made.id ?? made.item?.id };
-    }
-    const added = ctx.app.calls.addItem(ctx.who, id, item.id, 1);
-    return ctx.redirect(back, added.error ? { problem: say(added.error) } : { done: `${sku} is on the call.` });
+    const added = putOnCall(ctx, id, brand, number, description);
+    if (added.problem) return ctx.redirect(back, { problem: added.problem });
+    return ctx.redirect(back, { done: `${added.sku} is on the call.` });
   });
+}
+
+/** Find or create the catalog item for a brand and part number, and put one on the call. */
+export function putOnCall(ctx, callId, brand, number, description) {
+  const sku = `${brand} ${number}`.toUpperCase();
+  let item = (ctx.app.items.list(ctx.who, { q: sku, limit: 5 }).items ?? []).find((i) => i.sku.toLowerCase() === sku.toLowerCase());
+  if (!item) {
+    const made = ctx.app.items.create(ctx.who, { sku, name: description || `${brand} ${number}`, brand, price: '' });
+    if (made.error) return { problem: say(made.error) };
+    item = { id: made.id };
+  }
+  const added = ctx.app.calls.addItem(ctx.who, callId, item.id, 1);
+  return added.error ? { problem: say(added.error) } : { sku };
 }
 
 function applyToCall(ctx, id, spec, extra) {
@@ -129,7 +136,7 @@ function saved(ctx, id, spec) {
 // -------------------------------------------------------------------------------- the panel
 const VOTES = [['worked', 'It worked'], ['failed', 'Didn’t work'], ['wrong-fit', 'Wrong fit']];
 
-function answerCard(callId, a, closed) {
+export function answerCard(callId, a, closed) {
   const mark = a.confirmed ? `<span class="tag good">Confirmed by the shop · ${a.worked} ${a.worked === 1 ? 'person' : 'people'}</span>`
     : a.source === 'staff' ? '<span class="tag good">Added by staff</span>'
     : '<span class="tag warn">Suggested by AI · not checked yet</span>';

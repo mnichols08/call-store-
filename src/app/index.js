@@ -8,6 +8,7 @@ import { createNudges } from './nudges.js';
 import { createStats } from './stats.js';
 import { createVehicles } from './vehicles.js';
 import { createParts } from './parts.js';
+import { createWatch } from './watch.js';
 import { createVehicleSources } from '../infra/vehicle-sources.js';
 import { createAi } from '../infra/ai.js';
 
@@ -20,5 +21,8 @@ export function createApp({ db, now = Date.now, changed = () => {}, fetcher = gl
   const shared = { db, audit, now, changed };
   const sources = createVehicleSources({ db, fetcher, now });
   const ai = aiOptions.suggest ? aiOptions : createAi({ ...aiOptions, fetcher, log });
-  return { audit, vehicles: createVehicles({ ...shared, sources, log }), parts: createParts({ ...shared, ai, limits, log }), customers: createCustomers(shared), items: createItems(shared), calls: createCalls(shared), nudges: createNudges(shared), stats: createStats(shared) };
+  const nudges = createNudges(shared);
+  const parts = createParts({ ...shared, ai, limits, log });
+  const calls = createCalls(shared);
+  return { audit, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles: createVehicles({ ...shared, sources, log }), parts, customers: createCustomers(shared), items: createItems(shared), calls, nudges, stats: createStats(shared) };
 }

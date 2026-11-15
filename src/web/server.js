@@ -9,6 +9,7 @@ import { createZubra } from '@zubra/server';
 import { createStaff } from '../../vendor/kit/staff/index.js';
 import { clientAddress, staffPages } from '../../vendor/kit/staff/pages.js';
 import { createNotices } from '../../vendor/kit/notice/index.js';
+import { watchRoutes } from './pages/watch.js';
 import { vehicleRoutes } from './pages/vehicles.js';
 import { createApp } from '../app/index.js';
 import { sqliteStore } from '../infra/documents-store.js';
@@ -79,6 +80,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   overviewRoutes(router);
   nudgeRoutes(router);
   vehicleRoutes(router);
+  watchRoutes(router);
 
   const signInLimit = createLimiter({ max: 20, windowMs: 60_000, now });
 

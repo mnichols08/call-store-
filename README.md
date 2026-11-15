@@ -20,6 +20,7 @@ Built for Southern Auto Supply on [Zubra](https://github.com/journey-to-code-org
 - **Works without JavaScript.** Every page is server-rendered; autosave, live lookup and live queue updates are added on top.
 
 - **Vehicle lookup and part finder.** VIN, year and model (closest match), or year / make / model / engine / drivetrain; then NAPA, Balkamp and Dorman numbers from the shop's own saved answers first and Claude only when nothing is saved. See `docs/parts-finder.md`.
+- **Live.** Watch a coworker's call and suggest a part number to them, with a manager/owner switch (off by default).
 
 ## Run it
 

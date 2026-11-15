@@ -11,6 +11,8 @@ Identity is the signed-in account (`kit/staff`); every action is attributed to t
 | Nudge a coworker, print a call | ✓ | ✓ | ✓ |
 | Look up a vehicle, find parts, say whether a part worked, teach a part number | ✓ | ✓ | ✓ |
 | See AI use and part-finder statistics | | ✓ | ✓ |
+| Watch a coworker's call and suggest a part (once switched on) | ✓ | ✓ | ✓ |
+| Switch watching on or off for the shop | | ✓ | ✓ |
 | Hand a call back that someone else holds, assign calls | | ✓ | ✓ |
 | Edit or retire an item | | ✓ | ✓ |
 | Mark a customer inactive | | ✓ | ✓ |
@@ -25,3 +27,4 @@ Rules that go with it:
 - Messages after a form are signed, so a crafted link can't put words in an alert box.
 - Everything a person types is escaped on the way out. The page's Content-Security-Policy allows scripts only from this site and from Zubra's own, by nonce.
 - A coworker's newer edit to a call is never overwritten: saves carry the revision they started from and a stale one is refused.
+- Watching is off until a manager or owner turns it on, and turning it off ends every watch. The person being watched is always shown who is watching; each watch leaves an activity-log line (at most one per ten minutes per person per call). Watchers see the call but can't change it; a suggestion is only a card until the person working the call (or a manager) accepts it.

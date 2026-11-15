@@ -6,6 +6,7 @@
 - Text cut by a length limit in the middle of an emoji no longer breaks the pages that show it (found by the Zubra stress tests). Input is made well-formed, limits never split a character, and component props are cleaned.
 
 ### Added
+- Live: watch a coworker's call (read-only, with their part search as it happens) and suggest them a part number. Off until a manager or owner turns it on; the person being watched sees who is watching, each suggestion reaches them as a nudge and a card they accept (it goes on the call and into the shop's saved answers) or dismiss, and watching is written to the activity log.
 - Vehicle lookup on a call: read a VIN (NHTSA), find the closest vehicle from a year and a model ("2015 silvrado"), or pick year / make / model / engine / drivetrain with suggestions. Vehicles are saved to the customer; the picker's lists are learned and kept, so each question is asked of the outside world once.
 - Part finder: part by vehicle, or a part number to cross-reference, with NAPA, Balkamp and Dorman numbers. The shop's saved answers are always looked at first; Claude (Haiku, with web search) is asked only when there is nothing saved or someone asks for a fresh search. "It worked" / "Didn't work" / "Wrong fit" buttons teach the shop; staff can add a number they know is right. Hourly and daily limits, and a use panel on Reports.
 - Redirects with a `#section` now put the message before the section (the message used to be lost).

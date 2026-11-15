@@ -122,6 +122,7 @@ export function createParts({ db, audit, now, ai, limits = { hourly: 30, daily: 
       const fromMemory = !search.ai && results.length > 0;
       db.prepare('INSERT INTO part_searches (call_id, email, vehicle, part_term, query_number, answer_ids, from_memory, ai_used, ai_error, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(callId, who.email, JSON.stringify(vehicle), term, numberKey(number), JSON.stringify(results.map((r) => r.id)), fromMemory ? 1 : 0, search.ai ? 1 : 0, search.aiError, now());
+      if (callId != null) changed({ type: 'call', id: callId }); // anyone watching this call sees the search
       return { ok: true, vehicle, term, number, results, hidden, fromMemory, aiAsked: search.ai, aiError: search.aiError, note: search.note, canAskAi: ai.enabled };
     },
 

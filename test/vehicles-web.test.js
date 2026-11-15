@@ -158,3 +158,42 @@ test('picker endpoints, permissions and cross-site posts', async () => {
   assert.equal((await staff('/reports')).status, 403, 'AI spend is for managers');
   assert.match((await olive('/reports')).text, /Part finder/);
 });
+
+test('watching: off by default, a manager turns it on, the watched person sees it, a suggestion lands on their call', async () => {
+  const olive = await signedIn();
+  const ann = await signedIn(['staff'], 'ann@example.com');
+  const bob = await signedIn(['staff'], 'bob@example.com');
+  const annCall = (await ann('/calls', { method: 'POST', form: {} })).location;
+  await ann(`${annCall}/action`, { method: 'POST', form: { action: 'claim' } });
+  await ann(`${annCall}/vehicle/use`, { method: 'POST', form: { year: '2008', make: 'Ford', model: 'F-150' } });
+  await ann(`${annCall}/parts/find`, { method: 'POST', form: { term: 'water pump' } });
+
+  assert.match((await bob('/watch')).text, /switched off/);
+  assert.equal((await bob(`${annCall}/watch`)).status, 303, 'refused while off');
+  assert.equal((await bob('/watch/setting', { method: 'POST', form: { enabled: '1' } })).status, 303);
+  assert.match((await bob('/watch')).text, /switched off/, 'staff can’t switch it on');
+  await olive('/watch/setting', { method: 'POST', form: { enabled: '1' } });
+  assert.match((await bob('/watch')).text, /Watch<\/a>/);
+
+  const view = await bob(`${annCall}/watch`);
+  assert.equal(view.status, 200);
+  assert.match(view.text, /Their part search/);
+  assert.match(view.text, /BK 777/);
+  assert.ok(!/Put on call/.test(view.text), 'watchers can’t act on the call');
+  assert.match((await ann(annCall)).text, /bob@example\.com is watching this call/);
+  assert.deepEqual((await ann(`${annCall}/watchers`, { json: true })).json().names, ['bob@example.com']);
+  assert.equal((await ann(`${annCall}/watch`)).status, 303, 'nobody watches their own call');
+
+  const sent = await follow(bob, await bob(`${annCall}/suggest`, { method: 'POST', form: { term: 'water pump', brand: 'NAPA', part_number: 'NWP 42', note: '<b>in stock</b>' } }));
+  assert.match(sent.text, /Sent\./);
+  const page = (await ann(annCall)).text;
+  assert.match(page, /NAPA NWP 42/);
+  assert.ok(!page.includes('<b>in stock</b>'), 'a note is escaped');
+  const id = /action="\/suggestions\/(\d+)\/accept"/.exec(page)[1];
+  assert.equal((await bob(`/suggestions/${id}/accept`, { method: 'POST', form: {} })).location.includes('problem'), true, 'only the holder answers');
+  const taken = await follow(ann, await ann(`/suggestions/${id}/accept`, { method: 'POST', form: {} }));
+  assert.match(taken.text, /NAPA NWP 42 is on the call/);
+  const again = await follow(ann, await ann(`${annCall}/parts/find`, { method: 'POST', form: { term: 'water pump' } }));
+  assert.match(again.text, /NAPA NWP 42/, 'accepting taught the shop');
+  assert.match(again.text, /Added by staff|Confirmed by the shop/);
+});

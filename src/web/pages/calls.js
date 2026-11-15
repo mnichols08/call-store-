@@ -4,6 +4,7 @@ import { badge, button, callBadges, empty, field, say, select } from '../ui.js';
 import { OUTCOMES, PRIORITIES, STATUS_LABEL, canMove } from '../../domain/call.js';
 import { can } from '../../domain/permissions.js';
 import { formatPhone } from '../../domain/phone.js';
+import { suggestionsPanel } from './watch.js';
 import { matchList, partsPanel, vehiclePanels } from './vehicles.js';
 
 const VIEWS = [
@@ -183,7 +184,7 @@ async function workspace(ctx, got) {
   const vehiclePanel = vp.lookupHtml || vp.savedHtml ? `<section class="panel stack" id="vehicle"><h2>Vehicle lookup</h2>
     ${vp.vehicle ? `<p>On this call: <strong>${esc(vp.vehicle)}</strong></p>` : '<p class="muted">Read the VIN, find it by year and model, or pick it by hand. The fields below fill in.</p>'}
     ${vp.lookupHtml}${matches}${vp.savedHtml}</section>` : '';
-  const partsHtml = partsPanel(ctx, got, closed);
+  const partsHtml = suggestionsPanel(ctx, got, closed) + partsPanel(ctx, got, closed);
 
   const itemTerm = url.searchParams.get('item') ?? '';
   const itemHits = itemTerm ? app.items.list(who, { q: itemTerm, limit: 6 }).items ?? [] : [];

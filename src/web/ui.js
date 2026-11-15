@@ -34,6 +34,7 @@ export function callBadges(page, call, people) {
 const NAV = [
   ['/', 'Today', 'home', null],
   ['/calls', 'Calls', 'calls', 'call.view'],
+  ['/watch', 'Live', 'watch', 'call.watch'],
   ['/customers', 'Customers', 'customers', 'customer.view'],
   ['/items', 'Items', 'items', 'item.view'],
   ['/reports', 'Reports', 'reports', 'report.view'],
@@ -88,6 +89,9 @@ ${who ? '<script src="/assets/shortcuts.js" defer></script><script src="/assets/
 /** What each error code from the application layer says, in words for the person at the counter. */
 export const WORDS = {
   forbidden: 'Your role can’t do that.',
+  'watch-off': 'Watching is switched off in this shop.',
+  'watch-self': 'That’s your own call.',
+  decided: 'That suggestion was already answered.',
   'vin-length': 'A VIN is 17 characters. Check what was typed.',
   'vin-characters': 'A VIN uses only letters and numbers, never I, O or Q.',
   'vin-unknown': 'NHTSA couldn’t read that VIN.',
