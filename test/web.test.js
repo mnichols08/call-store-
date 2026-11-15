@@ -151,3 +151,15 @@ test('someone is told, not let in, when the sign-in is wrong', async () => {
   assert.match(wrong.location, /problem=/);
   assert.equal((await stranger('/')).location, '/staff/sign-in');
 });
+
+test('a coworker asking you for help is the first thing you see on Today', async () => {
+  const olive = await signedIn();
+  const ann = await signedIn(['staff'], 'ann@example.com', 'Ann');
+  const annWho = web.staff.session({ headers: { cookie: ann.cookie } });
+  const made = web.app.calls.create(annWho, { request: 'Hydraulic fitting, thread unknown' });
+  web.app.calls.requestHelp(annWho, made.id, 'olive@example.com');
+  const today = (await olive('/')).text;
+  assert.match(today, /asking you for help/);
+  assert.match(today, /Hydraulic fitting/);
+  assert.doesNotMatch((await ann('/')).text, /asking you for help/);
+});

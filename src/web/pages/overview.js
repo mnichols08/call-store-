@@ -12,10 +12,13 @@ export function overviewRoutes(router) {
     const { page, app, who, people } = ctx;
     const n = app.calls.counts(who);
     const mine = app.calls.queue(who, { view: 'mine', limit: 8 }).calls;
-    const help = app.calls.queue(who, { view: 'help', limit: 8 }).calls;
+    const allHelp = app.calls.queue(who, { view: 'help', limit: 20 }).calls;
+    const askedOfMe = allHelp.filter((c) => c.help === 'specific' && c.help_from === who.email);
+    const help = allHelp.filter((c) => !askedOfMe.includes(c)).slice(0, 8);
     const list = (calls) => `<ul class="plain">${calls.map((c) => `<li><span><a href="/calls/${c.id}">#${c.id} ${esc(c.title)}</a>${c.application ? `<small>${esc(c.application)}</small>` : ''}</span><span>${callBadges(page, c, people)}</span></li>`).join('')}</ul>`;
     return ctx.send('Today', `
 <div class="head"><h1>Today</h1></div>
+${askedOfMe.length ? `<section class="panel asked" aria-label="Asked of you"><h2>${askedOfMe.length === 1 ? 'A coworker is asking you for help' : 'Coworkers are asking you for help'}</h2>${list(askedOfMe)}</section>` : ''}
 <div class="stats">
 ${stat(page, { label: 'Open calls', value: String(n.active) })}${stat(page, { label: 'Nobody has yet', value: String(n.unassigned) })}
 ${stat(page, { label: 'Mine', value: String(n.mine) })}${stat(page, { label: 'Asking for help', value: String(n.help) })}${stat(page, { label: 'Parked', value: String(n.parked) })}</div>
