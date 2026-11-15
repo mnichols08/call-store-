@@ -4,7 +4,7 @@ export function createRouter() {
   const add = (method) => (pattern, handler) => {
     const names = [];
     const regex = new RegExp(`^${pattern.replace(/:([a-z]+)/g, (_, name) => (names.push(name), '([^/]+)'))}/?$`);
-    routes.push({ method, regex, names, handler });
+    routes.push({ method, regex, names, handler, pattern });
   };
   return {
     get: add('GET'),
@@ -13,7 +13,7 @@ export function createRouter() {
       for (const route of routes) {
         if (route.method !== method) continue;
         const m = route.regex.exec(path);
-        if (m) return { handler: route.handler, params: Object.fromEntries(route.names.map((n, i) => [n, decodeURIComponent(m[i + 1])])) };
+        if (m) return { handler: route.handler, pattern: route.pattern, params: Object.fromEntries(route.names.map((n, i) => [n, decodeURIComponent(m[i + 1])])) };
       }
       return null;
     },

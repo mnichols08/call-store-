@@ -4,13 +4,36 @@ import { createAudit } from './audit.js';
 import { createCalls } from './calls.js';
 import { createCustomers } from './customers.js';
 import { createItems } from './items.js';
+import { createNudges } from './nudges.js';
+import { createStats } from './stats.js';
+import { createVehicles } from './vehicles.js';
+import { createParts } from './parts.js';
+import { createWatch } from './watch.js';
+import { createDetails } from './details.js';
+import { createPortal } from './portal.js';
+import { createHours } from './hours.js';
+import { createOrders } from './orders.js';
+import { createMailer } from '../infra/mail.js';
+import { createVehicleSources } from '../infra/vehicle-sources.js';
+import { createAi } from '../infra/ai.js';
 
 /**
  * `changed(event)` is told after something committed, so the web layer can tell open pages.
  * `now` is a clock a test can set.
  */
-export function createApp({ db, now = Date.now, changed = () => {} }) {
+export function createApp({ db, now = Date.now, changed = () => {}, fetcher = globalThis.fetch, ai: aiOptions = {}, mail: mailOptions = {}, business, zone, limits, log }) {
   const audit = createAudit(db, now);
   const shared = { db, audit, now, changed };
-  return { audit, customers: createCustomers(shared), items: createItems(shared), calls: createCalls(shared) };
+  const sources = createVehicleSources({ db, fetcher, now });
+  const ai = aiOptions.suggest ? aiOptions : createAi({ ...aiOptions, fetcher, log });
+  const nudges = createNudges(shared);
+  const parts = createParts({ ...shared, ai, limits, log });
+  const calls = createCalls(shared);
+  const details = createDetails({ ...shared, nudges });
+  const mailer = mailOptions.send ? mailOptions : createMailer({ db, now, fetcher, log, ...mailOptions });
+  const customers = createCustomers(shared);
+  const portal = createPortal({ ...shared, details, calls, mailer, business, nudges, customers });
+  const hours = createHours({ ...shared, zone });
+  const orders = createOrders({ ...shared, ai, customers, log });
+  return { audit, details, portal, mailer, hours, orders, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles: createVehicles({ ...shared, sources, log }), parts, customers, items: createItems(shared), calls, nudges, stats: createStats(shared) };
 }

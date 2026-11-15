@@ -116,3 +116,14 @@ function row(c) {
   return li;
 }
 })();
+
+// Who is watching this call. Updated when a coworker opens or leaves it.
+window.refreshWatchers = async () => {
+  const line = document.getElementById('watchers');
+  if (!line) return;
+  try {
+    const r = await fetch(`/calls/${line.dataset.call}/watchers`, { headers: { accept: 'application/json' } });
+    const { names = [] } = await r.json();
+    line.textContent = names.length ? `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} watching this call.` : '';
+  } catch {}
+};

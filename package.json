@@ -5,16 +5,22 @@
   "description": "Call intake for the counter: answer the phone, record the call, share the queue. Built on Zubra, Zubra UI and the Potomac kit.",
   "type": "module",
   "license": "UNLICENSED",
-  "engines": { "node": ">=22.13" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "start": "node src/server.js",
     "migrate": "node src/infra/migrate-cli.js",
     "seed": "node src/infra/seed-cli.js",
-    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\""
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\"",
+    "backup": "node src/infra/backup-cli.js",
+    "stress": "node --expose-gc stress/bench.js"
   },
   "dependencies": {
+    "@journey-to-code/symbology": "^0.2.0",
     "@zubra/compiler": "5.17.0",
     "@zubra/runtime": "5.17.0",
-    "@zubra/server": "5.17.0"
+    "@zubra/server": "5.17.0",
+    "web-push": "3.6.7"
   }
 }

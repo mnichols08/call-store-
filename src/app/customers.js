@@ -2,8 +2,15 @@
 import { transaction } from '../infra/db.js';
 import { can } from '../domain/permissions.js';
 import { digitsOf, formatPhone, searchableDigits } from '../domain/phone.js';
+import { clip } from '../domain/text.js';
+import { mapHeader, parseCsv } from '../domain/csv.js';
 
-const clean = (value, max) => String(value ?? '').trim().slice(0, max);
+export const IMPORT_MAX_ROWS = 5000;
+export const IMPORT_MAX_CHARS = 600_000;
+// Names that read as a business, so a new import row starts out as one. It only guesses; the customer page can change it.
+const BUSINESS = /\b(llc|inc|corp|corporation|co|company|farms?|enterprises?|construction|excavating|motors|garage|repair|services?|lumber|trucking|sons|supply|auto|body|collision|hardwoods|industries|contracting|logging)\b/i;
+
+const clean = (value, max) => clip(String(value ?? '').trim(), max);
 const like = (text) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 export function createCustomers({ db, audit, now, changed }) {
@@ -102,6 +109,96 @@ export function createCustomers({ db, audit, now, changed }) {
         audit.record(who.email, 'customer.contact-added', `customer:${id}`, { name });
       });
       return { ok: true };
+    },
+
+    /**
+     * Read a customer list (ID, Name, Phone, and optionally Address, Notes) and say what importing it
+     * would do, changing nothing. Each row is `new`, `update` (same account number, or a customer with
+     * the same name and phone that has no account number yet), `same` (nothing to change) or `skip`.
+     */
+    importPlan(who, text) {
+      const no = deny(who, 'customer.import');
+      if (no) return no;
+      const source = String(text ?? '');
+      if (!source.trim()) return { error: 'empty' };
+      if (source.length > IMPORT_MAX_CHARS) return { error: 'too-big' };
+      const table = parseCsv(source);
+      const cols = table.length ? mapHeader(table[0]) : null;
+      if (!cols) return { error: 'no-header' };
+      const body = table.slice(1);
+      if (body.length > IMPORT_MAX_ROWS) return { error: 'too-many' };
+
+      const byAccount = new Map(db.prepare('SELECT id, name, account_no FROM customers WHERE account_no IS NOT NULL').all().map((r) => [r.account_no.toLowerCase(), r]));
+      const phoneOwners = new Map();
+      for (const r of db.prepare('SELECT customer_id, digits FROM customer_phones').all()) {
+        if (!phoneOwners.has(r.digits)) phoneOwners.set(r.digits, new Set());
+        phoneOwners.get(r.digits).add(r.customer_id);
+      }
+      const names = new Map(db.prepare('SELECT id, name, account_no FROM customers').all().map((r) => [r.id, r]));
+      const seen = new Set();
+      const fresh = new Map(); // new customers without an account number, so one person listed twice is made once
+      const rows = body.map((cells, i) => {
+        const at = (key) => (key in cols ? clean(cells[cols[key]], key === 'notes' ? 5000 : 400) : '');
+        const name = clean(at('name'), 160);
+        const account = clean(at('id'), 40);
+        const row = { line: i + 2, name, account_no: account || null, phones: [], address: at('address'), notes: at('notes'), warnings: [] };
+        if (!name) return { ...row, action: 'skip', why: 'No name' };
+        const key = account.toLowerCase();
+        if (account && seen.has(key)) return { ...row, action: 'skip', why: `Account ${account} appears earlier in the file` };
+        if (account) seen.add(key);
+        for (const piece of at('phone').split(/[;/|]|\s+or\s+/i)) {
+          const phone = formatPhone(clean(piece, 40));
+          if (!phone) continue;
+          if (digitsOf(phone).length < 7) { row.warnings.push(`Phone “${clean(piece, 40)}” left out`); continue; }
+          if (!row.phones.some((p) => p.digits === digitsOf(phone))) row.phones.push({ phone, digits: digitsOf(phone), label: '', ext: '' });
+        }
+        // Who is this already?
+        let match = account ? byAccount.get(key) : null;
+        if (!match) {
+          const sharing = row.phones.flatMap((p) => [...(phoneOwners.get(p.digits) ?? [])]);
+          const candidate = sharing.map((id) => names.get(id)).find((c) => c && c.name.toLowerCase() === name.toLowerCase() && (!account || !c.account_no));
+          if (candidate) match = candidate;
+        }
+        if (!match) {
+          const sig = row.phones.length && !account ? `${name.toLowerCase()}|${row.phones[0].digits}` : '';
+          if (sig && fresh.has(sig)) return { ...row, action: 'skip', why: `Same as line ${fresh.get(sig)}` };
+          if (sig) fresh.set(sig, row.line);
+          return { ...row, action: 'new', kind: BUSINESS.test(name) ? 'organization' : 'person' };
+        }
+        const have = new Set(phonesOf.all(match.id).map((p) => digitsOf(p.phone)));
+        const addPhones = row.phones.filter((p) => !have.has(p.digits));
+        const changes = [];
+        if (match.name !== name) changes.push(`name “${match.name}” becomes “${name}”`);
+        if (account && !match.account_no) changes.push(`account number ${account}`);
+        if (addPhones.length) changes.push(`adds ${addPhones.map((p) => p.phone).join(', ')}`);
+        if (!changes.length) return { ...row, action: 'same', id: match.id };
+        return { ...row, action: 'update', id: match.id, addPhones, changes };
+      });
+      const count = (action) => rows.filter((r) => r.action === action).length;
+      return { ok: true, rows, counts: { new: count('new'), update: count('update'), same: count('same'), skip: count('skip') }, columns: Object.keys(cols) };
+    },
+
+    /** Do what the plan says, all or nothing. The plan is made again from the text, never taken from the browser. */
+    importApply(who, text) {
+      const plan = this.importPlan(who, text);
+      if (plan.error) return plan;
+      const at = now();
+      transaction(db, () => {
+        const insert = db.prepare('INSERT INTO customers (kind, name, account_no, address, notes, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        const addPhone = db.prepare('INSERT INTO customer_phones (customer_id, label, ext, phone, digits) VALUES (?, ?, ?, ?, ?)');
+        for (const r of plan.rows) {
+          if (r.action === 'new') {
+            const { lastInsertRowid } = insert.run(r.kind, r.name, r.account_no, r.address, r.notes, who.email, at, at);
+            for (const p of r.phones) addPhone.run(Number(lastInsertRowid), '', '', p.phone, p.digits);
+          } else if (r.action === 'update') {
+            db.prepare('UPDATE customers SET name = ?, account_no = COALESCE(account_no, ?), updated_at = ? WHERE id = ?').run(r.name, r.account_no, at, r.id);
+            for (const p of r.addPhones) addPhone.run(r.id, '', '', p.phone, p.digits);
+          }
+        }
+        audit.record(who.email, 'customer.imported', 'customers', plan.counts);
+      });
+      changed({ type: 'customer' });
+      return { ok: true, counts: plan.counts };
     },
 
     get(who, id) {

@@ -35,4 +35,4 @@ Same: ticket-first, progressive capture, optional customer, shared queue, help r
 
 ## What's next
 
-In rough order: notifications when someone asks you for help; recent-calls search by part number across history; saved vehicles/equipment on a customer (promote a call's application); an attachment store; team chat and PTO if wanted; research assistance; a PostgreSQL option; dark mode.
+In rough order: notifications when someone asks you for help; recent-calls search by part number across history; saved vehicles/equipment on a customer (promote a call's application); an attachment store; team chat and PTO if wanted; research assistance; a PostgreSQL option.

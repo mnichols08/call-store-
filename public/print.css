@@ -1,0 +1,24 @@
+/* The printed ticket: plain black on white, sized for letter or A4. */
+* { box-sizing: border-box; }
+body { margin: 0; background: #e8ebf3; color: #111; font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+.toolbar { display: flex; justify-content: space-between; align-items: center; max-width: 52rem; margin: 0.75rem auto; padding: 0 0.5rem; }
+.toolbar a, .toolbar button { font: inherit; min-height: 44px; padding: 0.5rem 1rem; border: 1px solid #a8b5d8; border-radius: 8px; background: #fff; color: #0b132b; text-decoration: none; cursor: pointer; display: inline-flex; align-items: center; }
+.toolbar button { background: #1c64f2; color: #fff; border-color: transparent; font-weight: 600; }
+.sheet { max-width: 52rem; margin: 0 auto 2rem; padding: 1.5rem 2rem; background: #fff; box-shadow: 0 4px 20px rgba(10, 14, 35, 0.15); }
+.sheet-head { display: flex; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 0.4rem; margin-bottom: 0.8rem; }
+h1 { font-size: 1.5rem; margin: 0 0 0.4rem; }
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; margin: 1rem 0 0.3rem; border-bottom: 1px solid #999; padding-bottom: 0.15rem; }
+section { break-inside: avoid; }
+table { width: 100%; border-collapse: collapse; }
+.kv th { width: 9rem; text-align: left; font-weight: 600; vertical-align: top; padding: 0.15rem 0.5rem 0.15rem 0; }
+.kv td { padding: 0.15rem 0; white-space: pre-wrap; }
+.lines th, .lines td { text-align: left; padding: 0.25rem 0.5rem 0.25rem 0; border-bottom: 1px solid #ccc; vertical-align: top; }
+.lines th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.notes { white-space: pre-wrap; margin: 0; }
+.sheet-foot { margin-top: 1.2rem; color: #555; font-size: 0.8rem; border-top: 1px solid #999; padding-top: 0.3rem; }
+@media print {
+  body { background: #fff; }
+  .noprint { display: none !important; }
+  .sheet { box-shadow: none; max-width: none; margin: 0; padding: 0; }
+  @page { margin: 14mm; }
+}

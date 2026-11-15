@@ -3,6 +3,7 @@
 // reloads under you: it says so and lets you choose.
 const callForm = document.getElementById('call-form');
 const callId = callForm?.dataset.call;
+const watching = document.getElementById('watch-view')?.dataset.call;
 let timer;
 const typing = () => /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName ?? '') && document.activeElement.type !== 'checkbox';
 
@@ -27,8 +28,14 @@ new EventSource('/events').addEventListener('message', (message) => {
   } catch {
     return;
   }
+  if (watching) {
+    if (event.type === 'call' && String(event.id) === watching && !typing()) { clearTimeout(timer); timer = setTimeout(() => location.reload(), 400); }
+    return;
+  }
   if (callForm) {
+    if (event.type === 'watch' && String(event.id) === callId) { window.refreshWatchers?.(); return; }
     if (event.type !== 'call' || String(event.id) !== callId) return;
+    if (event.why === 'parts' && event.by === callForm.dataset.me) return; // my own search, already on my page
     if (window.callBusy?.()) return;
     banner();
     return;

@@ -1,0 +1,7 @@
+<!-- A list row with a slot, for stressing slots, many renders and nesting. -->
+<style>
+  :host { display: block; }
+</style>
+<row-item title="" count={0} note="">
+  <li class="row"><strong>{title}</strong> <span>{count}</span> <em zb-if={note}>{note}</em><div class="extra"><zb-slot></zb-slot></div></li>
+</row-item>

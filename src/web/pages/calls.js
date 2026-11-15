@@ -1,9 +1,14 @@
 // The call pages: the shared queue and the workspace where a call is taken and worked.
 import { esc, ago, when, money } from '../html.js';
-import { badge, button, callBadges, empty, field, say, select } from '../ui.js';
+import { badge, button, callBadges, empty, field, matchList, say, select } from '../ui.js';
 import { OUTCOMES, PRIORITIES, STATUS_LABEL, canMove } from '../../domain/call.js';
 import { can } from '../../domain/permissions.js';
 import { formatPhone } from '../../domain/phone.js';
+import { detailsPanel } from './details.js';
+import { callPortalPanel } from './portal.js';
+import { suggestionsPanel } from './watch.js';
+import { matchData, partsPanel, vehiclePanels } from './vehicles.js';
+import { bounded } from '../stream.js';
 
 const VIEWS = [
   ['active', 'All open'],
@@ -15,6 +20,10 @@ const VIEWS = [
 ];
 
 const EVENT_WORDS = {
+  details: (d) => `Measurements ${d.complete ? 'filled in' : 'started'}`,
+  portal: () => 'You updated the customer',
+  photo: (d) => (d.source === 'customer' ? 'The customer sent a photo' : 'A photo was added'),
+  'photo-removed': () => 'A photo was removed',
   created: () => 'Call started',
   application: () => 'Application changed',
   'customer-attached': (d) => `Customer attached${d.name ? `: ${d.name}` : ''}`,
@@ -54,8 +63,9 @@ export function callRoutes(router) {
       <td class="muted" title="${esc(when(c.created_at, config.zone))}">${ago(c.created_at, ctx.now())}</td></tr>`).join('');
     return ctx.send('Calls', `
 <div class="head"><h1>Calls</h1>
+<div class="row"><button type="button" class="btn" data-print>Print list</button>
 <form method="get" action="/calls" class="search" role="search"><input type="hidden" name="view" value="${esc(view)}">
-<input type="search" name="q" value="${esc(q)}" placeholder="Search requests, part numbers, callers" aria-label="Search calls"><button type="submit">Search</button></form></div>
+<input type="search" name="q" value="${esc(q)}" placeholder="Search requests, part numbers, callers" aria-label="Search calls"><button type="submit">Search</button></form></div></div>
 <nav class="tabs" aria-label="Queue views">${tabs}</nav>
 ${result.calls.length
       ? `<table class="grid" data-queue><thead><tr><th>#</th><th>Request</th><th>Caller</th><th>Owner</th><th>State</th><th>Started</th></tr></thead><tbody>${rows}</tbody></table>`
@@ -71,10 +81,17 @@ ${result.calls.length
   });
 
   // ---------------------------------------------------------------- the workspace
-  router.get('/calls/:id', (ctx) => {
+  router.get('/calls/:id', async (ctx) => {
     const got = ctx.app.calls.get(ctx.who, Number(ctx.params.id));
     if (got.error) return ctx.notFound();
-    return ctx.send(`Call #${got.call.id}`, workspace(ctx, got), { active: 'calls', live: true, script: '<script src="/assets/call.js" defer></script>' });
+    return ctx.stream(`Call #${got.call.id}`, await workspace(ctx, got), { active: 'calls', live: true, script: '<script src="/assets/call.js" defer></script><script src="/assets/vehicle.js" defer></script>' });
+  });
+
+  // The ticket on paper: everything about the call on one sheet.
+  router.get('/calls/:id/print', (ctx) => {
+    const got = ctx.app.calls.get(ctx.who, Number(ctx.params.id));
+    if (got.error) return ctx.notFound();
+    return ctx.print(`Call #${got.call.id}`, ticket(ctx, got), `/calls/${got.call.id}`);
   });
 
   router.post('/calls/:id/save', (ctx) => {
@@ -102,10 +119,10 @@ ${result.calls.length
     switch (action) {
       case 'claim': result = calls.claim(who, id); done = 'It’s yours.'; break;
       case 'release': result = calls.release(who, id); done = 'Back in the queue.'; break;
-      case 'assign': result = calls.assign(who, id, f.get('to')); done = 'Assigned.'; break;
+      case 'assign': result = calls.assign(who, id, f.get('to')); done = 'Assigned.'; if (!result.error && f.get('to') && f.get('to') !== who.email) ctx.app.nudges.send(who, { to: f.get('to'), callId: id, message: 'Assigned this call to you.' }); break;
       case 'park': result = calls.move(who, id, 'parked'); done = 'Parked. Pick it up from the queue any time.'; break;
       case 'resume': result = calls.move(who, id, 'working'); done = 'Back to work.'; break;
-      case 'help': result = calls.requestHelp(who, id, f.get('from') || ''); done = 'Help requested.'; break;
+      case 'help': result = calls.requestHelp(who, id, f.get('from') || ''); done = 'Help requested.'; if (!result.error && f.get('from') && f.get('from') !== who.email) ctx.app.nudges.send(who, { to: f.get('from'), callId: id, message: 'Asked for your help on this call.' }); break;
       case 'help-cleared': result = calls.clearHelp(who, id); break;
       case 'resolve': result = calls.finish(who, id, Object.fromEntries(f), 'resolved'); done = 'Resolved.'; break;
       case 'close': result = calls.finish(who, id, Object.fromEntries(f), 'closed'); done = 'Closed.'; break;
@@ -120,7 +137,7 @@ ${result.calls.length
   });
 }
 
-function workspace(ctx, got) {
+async function workspace(ctx, got) {
   const { page, who, people, config, url, app } = ctx;
   const { call, customer, items, events, earlier } = got;
   const closed = call.status === 'closed';
@@ -166,7 +183,15 @@ function workspace(ctx, got) {
         ${!finished && call.help !== 'normal' ? frm('help-cleared', 'Got it, no help needed') : ''}
       </div>
       ${!finished && call.help === 'normal' && staffOptions ? `<form method="post" action="/calls/${call.id}/action" class="row"><input type="hidden" name="action" value="help"><label class="sr" for="help-from">Ask</label><select id="help-from" name="from">${staffOptions}</select>${button(page, 'Ask them', { variant: 'outline', size: 'sm' })}</form>` : ''}
+      ${!finished && staffOptions ? `<form method="post" action="/calls/${call.id}/nudge" class="stack nudge-form"><div class="row"><label class="sr" for="nudge-to">Nudge</label><select id="nudge-to" name="to">${staffOptions}</select><label class="sr" for="nudge-msg">Message</label><input id="nudge-msg" name="message" maxlength="200" placeholder="Optional note"></div>${button(page, 'Nudge them', { variant: 'outline', size: 'sm' })}</form>` : ''}
       ${can(who, 'call.assign') && !finished ? `<form method="post" action="/calls/${call.id}/action" class="row"><input type="hidden" name="action" value="assign"><label class="sr" for="assign-to">Assign to</label><select id="assign-to" name="to"><option value="">Nobody</option>${people.list().map((p) => `<option value="${esc(p.email)}"${p.email === call.assignee ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>${button(page, 'Assign', { variant: 'outline', size: 'sm' })}</form>` : ''}`;
+
+  const vp = vehiclePanels(ctx, got, closed);
+  const matches = vp.deferMatch ? matchList(page, { callId: call.id, result: bounded(() => matchData(ctx, vp.deferMatch.vq, vp.deferMatch.vy), { ms: ctx.config.lookupTimeoutMs ?? 10_000, message: 'The vehicle lookup is slow right now. Pick by hand, or search again.', onError: (e) => ctx.log?.warn('match failed', { message: e.message }) }) }) : '';
+  const vehiclePanel = vp.lookupHtml || vp.savedHtml ? `<section class="panel stack" id="vehicle"><h2>Vehicle lookup</h2>
+    ${vp.vehicle ? `<p>On this call: <strong>${esc(vp.vehicle)}</strong></p>` : '<p class="muted">Read the VIN, find it by year and model, or pick it by hand. The fields below fill in.</p>'}
+    ${vp.lookupHtml}${matches}${vp.savedHtml}</section>` : '';
+  const partsHtml = suggestionsPanel(ctx, got, closed) + detailsPanel(ctx, got, closed) + partsPanel(ctx, got, closed);
 
   const itemTerm = url.searchParams.get('item') ?? '';
   const itemHits = itemTerm ? app.items.list(who, { q: itemTerm, limit: 6 }).items ?? [] : [];
@@ -183,11 +208,13 @@ function workspace(ctx, got) {
 
   return `
 <div class="head"><div><h1>${esc(got.title)}</h1><p class="muted">Call #${call.id} · started ${esc(when(call.created_at, config.zone))} by ${esc(people.name(call.created_by))}${call.assignee ? ` · ${esc(people.name(call.assignee))} has it` : ''}</p></div>
-<div class="badges">${callBadges(page, call, people)}${call.outcome ? badge(page, 'primary', OUTCOMES[call.outcome]) : ''}</div></div>
+<div class="badges">${callBadges(page, call, people)}${call.outcome ? badge(page, 'primary', OUTCOMES[call.outcome]) : ''}<a class="btn" href="/calls/${call.id}/print" target="_blank" rel="noopener">Print</a></div></div>
 <div class="workspace">
 <div class="main-col">
+  ${callPortalPanel(ctx, got, closed)}
   <section class="panel"><h2>Caller</h2>${lookup}</section>
-  <form method="post" action="/calls/${call.id}/save" id="call-form" data-call="${call.id}" data-revision="${call.revision}" autocomplete="off">
+  ${vehiclePanel}
+  <form method="post" action="/calls/${call.id}/save" id="call-form" data-call="${call.id}" data-me="${esc(who.email)}" data-revision="${call.revision}" autocomplete="off">
     <input type="hidden" name="revision" value="${call.revision}">
     <section class="panel stack"><h2>The request</h2>
       ${field(page, { label: 'What do they need?', name: 'request', value: call.request, rows: 3, ...lock })}
@@ -206,6 +233,7 @@ function workspace(ctx, got) {
 <aside class="side-col">
   <section class="panel"><h2>Work it</h2>${actions}</section>
   ${outcomeForm}
+  ${partsHtml}
   ${itemPanel}
   ${timeline}
 </aside>
@@ -216,4 +244,31 @@ function foundRow(page, callId, c) {
   return `<li><span><strong>${esc(c.name)}</strong> ${c.kind === 'organization' ? badge(page, 'outline', 'Business') : ''}${c.open_calls ? badge(page, 'warning', `${c.open_calls} open`) : ''}
     <small>${c.account_no ? `Account ${esc(c.account_no)} · ` : ''}${c.phones.map((p) => esc(p.phone)).join(' · ')}</small></span>
     <form method="post" action="/calls/${callId}/action"><input type="hidden" name="action" value="customer"><input type="hidden" name="customer" value="${c.id}">${button(page, 'This is them', { size: 'sm' })}</form></li>`;
+}
+
+const OUTCOME_LABELS = { final_parts: 'Part number(s)', brand: 'Brand', quantity: 'Quantity', cents: 'Price quoted', reference: 'Invoice / reference', resolution: 'Note' };
+
+/** The printable ticket. Every value a person typed goes through esc(). */
+function ticket(ctx, got) {
+  const { who, people, config } = ctx;
+  const { call, customer, items, events } = got;
+  const a = call.application;
+  const row = (label, value) => (value ? `<tr><th>${esc(label)}</th><td>${esc(value)}</td></tr>` : '');
+  const equipment = [['Year', a.year], ['Make', a.make], ['Model', a.model], ['Engine', a.engine], ['Drivetrain', a.drivetrain], ['VIN / serial', a.vin], ['Fleet / unit', a.unit]].map(([l, v]) => row(l, v)).join('');
+  const outcome = call.outcome
+    ? `<section><h2>Outcome</h2><table class="kv">${row('Result', OUTCOMES[call.outcome])}${Object.entries(call.outcome_data ?? {}).map(([k, v]) => row(OUTCOME_LABELS[k] ?? k, k === 'cents' && typeof v === 'number' ? money(v) : String(v))).join('')}</table></section>`
+    : '';
+  return `
+<section><h1>Call #${call.id}</h1>
+<table class="kv">${row('Status', STATUS_LABEL[call.status] ?? call.status)}${row('Started', `${when(call.created_at, config.zone)} by ${people.name(call.created_by)}`)}${row('Taken by', call.assignee ? people.name(call.assignee) : '')}${row('Priority', call.priority === 'normal' ? '' : call.priority)}</table></section>
+<section><h2>Caller</h2><table class="kv">
+${customer ? `${row('Customer', customer.name)}${row('Account', customer.account_no)}${row('Phone', customer.phones.map((p) => p.phone).join(', '))}` : `${row('Name', call.caller_name)}${row('Callback', call.caller_phone ? formatPhone(call.caller_phone) : '')}${call.caller_name || call.caller_phone ? '' : '<tr><td colspan="2">No caller details recorded.</td></tr>'}`}
+</table></section>
+<section><h2>Request</h2><table class="kv">${row('Needs', call.request)}${row('Part number(s)', call.part_numbers)}${row('Quantity', call.quantity == null ? '' : String(call.quantity))}</table></section>
+${equipment || a.freeform ? `<section><h2>Goes on</h2><table class="kv">${equipment}${row('Other', a.freeform)}</table></section>` : ''}
+${items.length ? `<section><h2>Items</h2><table class="lines"><thead><tr><th>Item no.</th><th>Description</th><th>Brand</th><th>Qty</th><th>Price</th></tr></thead><tbody>${items.map((i) => `<tr><td>${esc(i.sku)}</td><td>${esc(i.name)}</td><td>${esc(i.brand ?? '')}</td><td>${i.quantity}</td><td>${i.cents != null ? esc(money(i.cents)) : ''}</td></tr>`).join('')}</tbody></table></section>` : ''}
+${call.notes ? `<section><h2>Notes</h2><p class="notes">${esc(call.notes)}</p></section>` : ''}
+${outcome}
+<section><h2>Timeline</h2><table class="lines"><tbody>${events.map((e) => `<tr><td>${esc(when(e.at, config.zone))}</td><td>${esc(people.name(e.actor))}</td><td>${esc((EVENT_WORDS[e.type] ?? (() => e.type))(e.data, people))}</td></tr>`).join('')}</tbody></table></section>
+<footer class="sheet-foot">Printed ${esc(when(ctx.now(), config.zone))} by ${esc(who.name || who.email)}</footer>`;
 }
