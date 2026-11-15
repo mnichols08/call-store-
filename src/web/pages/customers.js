@@ -19,10 +19,14 @@ export function phonesFrom(form) {
   return phones;
 }
 
+const TIER_LABEL = { retail: 'Retail', pro: 'Pro', fleet: 'Fleet' };
+export const tierBadge = (page, tier) => (tier === 'pro' || tier === 'fleet' ? badge(page, tier === 'fleet' ? 'warning' : 'primary', TIER_LABEL[tier]) : '');
+
 function customerForm(page, c = {}, action, call = '') {
   return `<form method="post" action="${action}" class="panel stack">
   ${call ? `<input type="hidden" name="call" value="${esc(call)}">` : ''}
   ${select(page, { label: 'Kind', name: 'kind', value: c.kind ?? 'person', options: [{ value: 'person', label: 'Person' }, { value: 'organization', label: 'Business / organization' }] })}
+  ${select(page, { label: 'Account type', name: 'tier', value: c.tier ?? 'retail', options: [{ value: 'retail', label: 'Retail (walk-in or regular)' }, { value: 'pro', label: 'Pro (mechanic, body shop, contractor)' }, { value: 'fleet', label: 'Fleet' }] })}
   ${field(page, { label: 'Name', name: 'name', value: c.name ?? '', required: true, autocomplete: 'off' })}
   ${field(page, { label: 'Account number', name: 'account_no', value: c.account_no ?? '' })}
   ${phoneRows(page, c.phones)}
@@ -35,13 +39,14 @@ export function customerRoutes(router) {
   router.get('/customers', (ctx) => {
     const { page, app, url } = ctx;
     const q = url.searchParams.get('q') ?? '';
-    const list = app.customers.list(ctx.who, { q }).customers;
-    const rows = list.map((c) => `<tr><td><a href="/customers/${c.id}">${esc(c.name)}</a>${c.kind === 'organization' ? ` ${badge(page, 'outline', 'Business')}` : ''}${c.status === 'inactive' ? ` ${badge(page, 'warning', 'Inactive')}` : ''}</td>
+    const tier = url.searchParams.get('tier') ?? '';
+    const list = app.customers.list(ctx.who, { q, tier }).customers;
+    const rows = list.map((c) => `<tr><td><a href="/customers/${c.id}">${esc(c.name)}</a>${c.kind === 'organization' ? ` ${badge(page, 'outline', 'Business')}` : ''} ${tierBadge(page, c.tier)}${c.status === 'inactive' ? ` ${badge(page, 'warning', 'Inactive')}` : ''}</td>
       <td>${esc(c.account_no ?? '')}</td><td>${c.phones.map((p) => esc(p.phone)).join('<br>')}</td><td>${c.open_calls || ''}</td></tr>`).join('');
     return ctx.send('Customers', `
 <div class="head"><h1>Customers</h1><div class="row">
-<form method="get" action="/customers" class="search" role="search"><input type="search" name="q" value="${esc(q)}" placeholder="Phone, name or account" aria-label="Search customers"><button type="submit">Search</button></form>
-${can(ctx.who, 'customer.import') ? '<a class="btn" href="/customers/import">Import list</a>' : ''}${can(ctx.who, 'customer.create') ? '<a class="btn primary" href="/customers/new">Add customer</a>' : ''}</div></div>
+<form method="get" action="/customers" class="search" role="search"><input type="search" name="q" value="${esc(q)}" placeholder="Phone, name or account" aria-label="Search customers"><select name="tier" aria-label="Account type"><option value="">All types</option><option value="pro"${tier === 'pro' ? ' selected' : ''}>Pro</option><option value="fleet"${tier === 'fleet' ? ' selected' : ''}>Fleet</option><option value="retail"${tier === 'retail' ? ' selected' : ''}>Retail</option></select><button type="submit">Search</button></form>
+${can(ctx.who, 'portal.invite') ? '<a class="btn" href="/counter-card">Counter card</a>' : ''}${can(ctx.who, 'customer.import') ? '<a class="btn" href="/customers/import">Import list</a>' : ''}${can(ctx.who, 'customer.create') ? '<a class="btn primary" href="/customers/new">Add customer</a>' : ''}</div></div>
 ${accessPanel(ctx)}
 ${list.length ? `<table class="grid"><thead><tr><th>Name</th><th>Account</th><th>Phones</th><th>Open calls</th></tr></thead><tbody>${rows}</tbody></table>` : empty(page, q ? 'No one matches' : 'No customers yet', q ? 'Try the last four digits of the phone number.' : 'Callers don’t have to be customers. Add the regulars here.')}`, { active: 'customers' });
   });
@@ -54,7 +59,7 @@ ${list.length ? `<table class="grid"><thead><tr><th>Name</th><th>Account</th><th
 
   // Bring in a customer list from a spreadsheet (CSV): look it over first, then confirm.
   const importForm = (text = '') => `<form method="post" action="/customers/import/preview" class="panel stack">
-    <p>Columns: <strong>ID</strong> (the account number), <strong>Name</strong> and <strong>Phone</strong>. Address and Notes work too. Separate cells with commas or tabs, so a copy from a spreadsheet works as it is. Nothing changes until you confirm.</p>
+    <p>Columns: <strong>ID</strong> (the account number), <strong>Name</strong> and <strong>Phone</strong>. Address, Notes and Type (retail, pro or fleet) work too. Separate cells with commas or tabs, so a copy from a spreadsheet works as it is. Nothing changes until you confirm.</p>
     <label>Choose a file<input type="file" id="import-file" accept=".csv,.tsv,.txt,text/csv,text/plain"></label>
     <label>Or paste it here<textarea name="csv" id="import-text" rows="10" spellcheck="false" placeholder="ID&#9;Name&#9;Phone">${esc(text)}</textarea></label>
     <div class="row"><button class="btn primary">Look it over</button><a class="btn" href="/customers">Cancel</a></div></form>`;
@@ -89,7 +94,7 @@ ${list.length ? `<table class="grid"><thead><tr><th>Name</th><th>Account</th><th
 
   router.post('/customers', (ctx) => {
     const f = ctx.form;
-    const made = ctx.app.customers.create(ctx.who, { kind: f.get('kind'), name: f.get('name'), account_no: f.get('account_no'), address: f.get('address'), notes: f.get('notes'), phones: phonesFrom(f) });
+    const made = ctx.app.customers.create(ctx.who, { kind: f.get('kind'), tier: f.get('tier'), name: f.get('name'), account_no: f.get('account_no'), address: f.get('address'), notes: f.get('notes'), phones: phonesFrom(f) });
     if (made.error) return ctx.redirect(f.get('call') ? `/customers/new?call=${encodeURIComponent(f.get('call'))}` : '/customers/new', { problem: say(made.error) });
     const call = Number(f.get('call'));
     if (call) {
@@ -127,7 +132,7 @@ ${customerPortalPanel(ctx, c)}
   router.post('/customers/:id', (ctx) => {
     const id = Number(ctx.params.id);
     const f = ctx.form;
-    const r = ctx.app.customers.update(ctx.who, id, { kind: f.get('kind'), name: f.get('name'), account_no: f.get('account_no'), address: f.get('address'), notes: f.get('notes'), phones: phonesFrom(f) });
+    const r = ctx.app.customers.update(ctx.who, id, { kind: f.get('kind'), tier: f.get('tier'), name: f.get('name'), account_no: f.get('account_no'), address: f.get('address'), notes: f.get('notes'), phones: phonesFrom(f) });
     return ctx.redirect(`/customers/${id}`, r.error ? { problem: say(r.error) } : { done: 'Saved.' });
   });
 

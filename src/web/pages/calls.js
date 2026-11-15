@@ -5,6 +5,7 @@ import { OUTCOMES, PRIORITIES, STATUS_LABEL, canMove } from '../../domain/call.j
 import { can } from '../../domain/permissions.js';
 import { formatPhone } from '../../domain/phone.js';
 import { detailsPanel } from './details.js';
+import { tierBadge } from './customers.js';
 import { callPortalPanel } from './portal.js';
 import { suggestionsPanel } from './watch.js';
 import { matchData, partsPanel, vehiclePanels } from './vehicles.js';
@@ -153,7 +154,7 @@ async function workspace(ctx, got) {
   const found = find ? app.customers.search(who, find).customers ?? [] : [];
   const lookup = customer
     ? `<div class="customer-card"><div><strong><a href="/customers/${customer.id}">${esc(customer.name)}</a></strong>
-        ${customer.kind === 'organization' ? badge(page, 'outline', 'Business') : ''}${customer.status === 'inactive' ? badge(page, 'warning', 'Inactive') : ''}
+        ${customer.kind === 'organization' ? badge(page, 'outline', 'Business') : ''}${tierBadge(page, customer.tier)}${customer.status === 'inactive' ? badge(page, 'warning', 'Inactive') : ''}
         <small>${customer.account_no ? `Account ${esc(customer.account_no)} · ` : ''}${customer.phones.map((p) => esc(p.phone)).join(' · ')}</small></div>
         ${closed ? '' : frm('customer', 'Not them', '<input type="hidden" name="customer" value="">', 'ghost')}</div>
         ${earlier.length ? `<details><summary>${earlier.length} earlier call${earlier.length > 1 ? 's' : ''}</summary><ul class="plain">${earlier.map((e) => `<li><a href="/calls/${e.id}">#${e.id}</a> ${esc(e.request || e.part_numbers || 'No request noted')} ${badge(page, 'outline', OUTCOMES[e.outcome] ?? STATUS_LABEL[e.status])}</li>`).join('')}</ul></details>` : ''}`

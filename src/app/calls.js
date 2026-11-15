@@ -59,7 +59,7 @@ export function createCalls({ db, audit, now, changed }) {
       if (no) return no;
       const call = inflate(row(id));
       if (!call) return { error: 'missing' };
-      const customer = call.customer_id ? db.prepare('SELECT id, kind, name, account_no, status FROM customers WHERE id = ?').get(call.customer_id) : null;
+      const customer = call.customer_id ? db.prepare('SELECT id, kind, tier, name, account_no, status FROM customers WHERE id = ?').get(call.customer_id) : null;
       const phones = customer ? db.prepare('SELECT phone, label, ext FROM customer_phones WHERE customer_id = ? ORDER BY id').all(customer.id) : [];
       const items = db.prepare(`SELECT i.id, i.sku, i.name, i.brand, i.cents, i.unit, ci.quantity FROM call_items ci JOIN items i ON i.id = ci.item_id
         WHERE ci.call_id = ? ORDER BY i.name`).all(id);

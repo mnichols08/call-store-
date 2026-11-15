@@ -50,6 +50,7 @@ const HEADERS = {
   name: ['name', 'customer', 'customer name', 'company', 'company name', 'business', 'full name'],
   phone: ['phone', 'phones', 'phone number', 'telephone', 'tel', 'mobile', 'cell', 'cell phone', 'contact number'],
   address: ['address', 'street', 'mailing address'],
+  tier: ['type', 'tier', 'account type', 'customer type', 'class'],
   notes: ['notes', 'note', 'comments', 'comment'],
 };
 
