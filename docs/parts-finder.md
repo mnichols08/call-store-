@@ -25,3 +25,13 @@ fueleconomy.gov covers cars and light trucks, not heavy trucks. For those the en
 ## Privacy
 
 The VIN is stored on the call and on the customer (when one is attached). Logs and the audit trail for lookups carry only the last six characters. The Anthropic key is read on the server and is never sent to a browser.
+
+## Measurements and photos
+
+Pick what kind of part it is (bearing, seal, belt, hose, fitting, wiper, filter) and enter the numbers that identify it, in millimetres or inches. Fractions like `1 1/2` are fine. A complete set of measurements becomes a key such as `bearing id25 od52 w15 mm`, the same whichever unit it was entered in. "Find by these measurements" looks for that key in the shop's saved answers first, and only then asks the AI, which is told the key and nothing about the customer. A part number staff confirm for the key is saved and shown first next time.
+
+Photos are accepted only if they really are JPEG, PNG or WebP, are limited to 8 per call and 6 MB each, and have EXIF, XMP and text metadata removed (so location is never kept). The page shrinks a photo before sending it, which removes metadata too. They are served only to signed-in staff, and deleted `PHOTO_RETENTION_DAYS` (90) after the call closes.
+
+## The customer link
+
+"Make a link for the customer" gives a one-time address (shown once; only a hash is stored) that works for 48 hours for that call. The customer can give measurements, send photos and add a note, nothing else. Staff are nudged when something arrives. "Turn the links off" ends it early, and finishing the call ends it too. The link is sent by whatever the staff member uses (the "Text it" button opens their phone's messages); the app does not send texts itself yet.

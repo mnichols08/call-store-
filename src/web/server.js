@@ -10,6 +10,9 @@ import { createStaff } from '../../vendor/kit/staff/index.js';
 import { clientAddress, staffPages } from '../../vendor/kit/staff/pages.js';
 import { createNotices } from '../../vendor/kit/notice/index.js';
 import { watchRoutes } from './pages/watch.js';
+import { detailsRoutes } from './pages/details.js';
+import { createCustomerPages } from './customer.js';
+import { LIMITS } from '../app/details.js';
 import { vehicleRoutes } from './pages/vehicles.js';
 import { createApp } from '../app/index.js';
 import { sqliteStore } from '../infra/documents-store.js';
@@ -80,8 +83,10 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   overviewRoutes(router);
   nudgeRoutes(router);
   vehicleRoutes(router);
+  detailsRoutes(router);
   watchRoutes(router);
 
+  const customer = createCustomerPages({ app, config, zubra, now });
   const signInLimit = createLimiter({ max: 20, windowMs: 60_000, now });
 
   function html(res, status, body, extra = {}) {
@@ -107,6 +112,17 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   function renderSignIn(req, res, url) {
     const page = zubra.page({ nonce: res.cspNonce });
     html(res, 200, page.finish(layout({ title: 'Sign in', who: null, body: pages.signIn(url), business: config.business })), { 'content-security-policy': res.csp });
+  }
+
+  async function readRaw(req, limit) {
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > limit) throw Object.assign(new Error('too large'), { status: 413 });
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
   }
 
   async function readForm(req) {
@@ -205,13 +221,22 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const posting = req.method === 'POST';
     if (posting && !sameSite(req)) return html(res, 403, 'Cross-site posts are refused.', { 'content-type': 'text/plain' });
     let form = null;
+    let raw = null;
     if (posting) {
       try {
-        form = await readForm(req);
+        // Photos arrive as the picture itself, not as a form.
+        if (/^\/d\/[A-Za-z0-9_-]+\/photo\/?$/.test(url.pathname) || /^\/calls\/\d+\/photos\/?$/.test(url.pathname)) {
+          raw = await readRaw(req, LIMITS.photoBytes + 4096);
+          form = new URLSearchParams();
+        } else form = await readForm(req);
       } catch (error) {
-        return html(res, error.status ?? 400, 'That request was too large.', { 'content-type': 'text/plain' });
+        res.once('finish', () => req.destroy()); // the rest of an oversized body is never read, so don't reuse the connection
+        return html(res, error.status ?? 400, 'That request was too large.', { 'content-type': 'text/plain', connection: 'close' });
       }
     }
+
+    const customerLink = /^\/d\/([A-Za-z0-9_-]{20,80})(?:\/(details|photo))?\/?$/.exec(url.pathname);
+    if (customerLink) return customer.handle(req, res, url, { token: customerLink[1], action: customerLink[2], posting, form, raw, nonce, ip: clientAddress(req, { proxies: config.proxies }) });
 
     const who = staff.session(req);
     res.cstoreWho = who;
@@ -249,7 +274,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const page = zubra.page({ nonce });
     const notice = notices.read(url);
     const ctx = {
-      req, res, url, form, who, page, app, people, config, push, params: found?.params ?? {}, wantsJson, now,
+      req, res, url, form, raw, who, page, app, people, config, push, params: found?.params ?? {}, wantsJson, now,
       send(title, body, { active = '', live = false, script = '' } = {}, status = 200) {
         html(res, status, page.finish(layout({ title, who, active, body, notice, business: config.business, live, script })), { 'content-security-policy': res.csp });
       },
@@ -283,7 +308,14 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
       res.end('Something went wrong.');
     });
   });
+  // Photos and links go when a call has been closed for a while.
+  const days = config.photoRetentionDays ?? 90;
+  const purge = () => { try { app.details.purge(days); } catch (error) { log.error('photo purge failed', error); } };
+  purge();
+  const purger = setInterval(purge, 3_600_000);
+  purger.unref();
   server.on('close', () => {
+    clearInterval(purger);
     for (const res of clients) res.end();
   });
 

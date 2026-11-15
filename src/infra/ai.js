@@ -41,7 +41,7 @@ You get a JSON request describing a vehicle and either a part needed or a part n
 
 Give up to 5 candidate part numbers the store could sell, preferring these lines: ${brands.join(', ')} (Balkamp is NAPA's own brand; NAPA's own numbers count too). For a cross-reference, give equivalent parts in those lines.
 
-Never invent a part number. Use web search to find the number on a catalogue page and give that page as sourceUrl. If you can't find or verify a number, return fewer candidates, or none, with confidence "low". Say in "fitment" anything that decides whether it fits (engine, position, trim, production dates).
+If part_needed looks like "bearing id25 od52 w15 mm", the numbers are measurements in millimetres (id inner diameter, od outer diameter, w width, len length, bore, shaft; ribs is a count) and there is no vehicle: identify standard parts with those dimensions.\n\nNever invent a part number. Use web search to find the number on a catalogue page and give that page as sourceUrl. If you can't find or verify a number, return fewer candidates, or none, with confidence "low". Say in "fitment" anything that decides whether it fits (engine, position, trim, production dates).
 
 Reply with ONLY a JSON object, no other text:
 {"candidates":[{"brand":"","partNumber":"","description":"","fitment":"","confidence":"low|medium|high","sourceUrl":""}],"note":""}`;

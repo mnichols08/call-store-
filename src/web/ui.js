@@ -89,6 +89,14 @@ ${who ? '<script src="/assets/shortcuts.js" defer></script><script src="/assets/
 /** What each error code from the application layer says, in words for the person at the counter. */
 export const WORDS = {
   forbidden: 'Your role can’t do that.',
+  type: 'Pick what kind of part it is.',
+  measure: 'A measurement doesn’t look right. Use numbers like 25, 25.4 or 1/2.',
+  closed: 'That call is already finished.',
+  link: 'That link isn’t working.',
+  'photo-many': 'That’s the most photos a call can hold.',
+  'photo-big': 'That photo is too large.',
+  'photo-type': 'Only JPEG, PNG or WebP photos can be added.',
+  'photo-bad': 'That photo couldn’t be read.',
   'watch-off': 'Watching is switched off in this shop.',
   'watch-self': 'That’s your own call.',
   decided: 'That suggestion was already answered.',

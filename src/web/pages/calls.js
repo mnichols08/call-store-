@@ -4,6 +4,7 @@ import { badge, button, callBadges, empty, field, say, select } from '../ui.js';
 import { OUTCOMES, PRIORITIES, STATUS_LABEL, canMove } from '../../domain/call.js';
 import { can } from '../../domain/permissions.js';
 import { formatPhone } from '../../domain/phone.js';
+import { detailsPanel } from './details.js';
 import { suggestionsPanel } from './watch.js';
 import { matchList, partsPanel, vehiclePanels } from './vehicles.js';
 
@@ -17,6 +18,9 @@ const VIEWS = [
 ];
 
 const EVENT_WORDS = {
+  details: (d) => `Measurements ${d.complete ? 'filled in' : 'started'}`,
+  photo: (d) => (d.source === 'customer' ? 'The customer sent a photo' : 'A photo was added'),
+  'photo-removed': () => 'A photo was removed',
   created: () => 'Call started',
   application: () => 'Application changed',
   'customer-attached': (d) => `Customer attached${d.name ? `: ${d.name}` : ''}`,
@@ -184,7 +188,7 @@ async function workspace(ctx, got) {
   const vehiclePanel = vp.lookupHtml || vp.savedHtml ? `<section class="panel stack" id="vehicle"><h2>Vehicle lookup</h2>
     ${vp.vehicle ? `<p>On this call: <strong>${esc(vp.vehicle)}</strong></p>` : '<p class="muted">Read the VIN, find it by year and model, or pick it by hand. The fields below fill in.</p>'}
     ${vp.lookupHtml}${matches}${vp.savedHtml}</section>` : '';
-  const partsHtml = suggestionsPanel(ctx, got, closed) + partsPanel(ctx, got, closed);
+  const partsHtml = suggestionsPanel(ctx, got, closed) + detailsPanel(ctx, got, closed) + partsPanel(ctx, got, closed);
 
   const itemTerm = url.searchParams.get('item') ?? '';
   const itemHits = itemTerm ? app.items.list(who, { q: itemTerm, limit: 6 }).items ?? [] : [];

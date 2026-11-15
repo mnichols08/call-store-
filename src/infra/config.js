@@ -23,6 +23,7 @@ export const config = Object.freeze({
   // One JSON line per request (on by default in production).
   logRequests: (process.env.LOG_REQUESTS ?? (production ? 'true' : 'false')) === 'true',
   // Set to expose /metrics (Prometheus format) to a scraper sending this bearer token.
+  photoRetentionDays: Number(process.env.PHOTO_RETENTION_DAYS ?? 90),
   metricsToken: process.env.METRICS_TOKEN ?? '',
   // Part-number suggestions from Claude. Without a key the finder still works from what the shop has saved.
   ai: Object.freeze({

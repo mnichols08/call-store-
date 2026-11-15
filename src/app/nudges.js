@@ -32,6 +32,15 @@ export function createNudges({ db, audit, now, changed }) {
       return { ok: true, id };
     },
 
+    /** A nudge from the system itself (a customer sent details). No permission to check: the caller is the app. */
+    system(to, { callId = null, message = '' }) {
+      const text = clip(String(message).trim(), MAX_MESSAGE);
+      const { lastInsertRowid } = db.prepare('INSERT INTO nudges (from_email, to_email, call_id, message, created_at) VALUES (?, ?, ?, ?, ?)').run('customer', to, callId, text, now());
+      const id = Number(lastInsertRowid);
+      changed({ type: 'nudge', id, to, from: 'customer', callId, message: text });
+      return { ok: true, id };
+    },
+
     /** Unread nudges for the signed-in person, newest first. */
     inbox(who) {
       const rows = db.prepare('SELECT * FROM nudges WHERE to_email = ? AND seen_at IS NULL ORDER BY id DESC LIMIT 50').all(who.email);

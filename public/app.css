@@ -341,3 +341,14 @@ h2.section { margin: 1.2rem 0 0.6rem; font-size: 1.15rem; }
 .answer .vote { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: .35rem; }
 .answer .vote form { display: inline-block; margin: 0; }
 .answer .vote button { padding-inline: .7rem; font-size: .85rem; }
+
+/* Measurements and photos */
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .25rem 0 .5rem; }
+.chip { display: inline-flex; align-items: center; min-height: 44px; padding: 0 .9rem; border: 1px solid var(--cs-line, rgba(127,127,127,.4)); border-radius: 999px; text-decoration: none; }
+.chip.on { font-weight: 700; outline: 2px solid currentColor; }
+.units { display: flex; gap: 1rem; border: 0; padding: 0; }
+.units legend { font-size: .9rem; margin-bottom: .25rem; }
+.photos { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: .5rem; }
+.photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: .5rem; display: block; }
+.upload { display: inline-flex; flex-direction: column; gap: .25rem; }
+.upload input { min-height: 44px; }

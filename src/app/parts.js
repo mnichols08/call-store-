@@ -29,6 +29,10 @@ export function createParts({ db, audit, now, ai, limits = { hourly: 30, daily: 
         && (!a.engine || !vehicle.engine || norm(a.engine) === norm(vehicle.engine))
         && (!a.drivetrain || !vehicle.drivetrain || norm(a.drivetrain) === norm(vehicle.drivetrain))));
     }
+    if (term && !vehicle.make) { // a part identified by its measurements, not by a vehicle
+      const tk = termKey(term);
+      rows.push(...db.prepare("SELECT * FROM part_answers WHERE year = 0 AND make = '' AND model = '' AND query_number = ''").all().filter((a) => termKey(a.part_term) === tk));
+    }
     const unique = [...new Map(rows.map((r) => [r.id, r])).values()];
     return unique.sort((a, b) => scoreAnswer(b) - scoreAnswer(a) || b.updated_at - a.updated_at);
   }
@@ -80,15 +84,15 @@ export function createParts({ db, audit, now, ai, limits = { hourly: 30, daily: 
      * Returns the shop's own answers when there are any. `fresh` asks the AI again (once per
      * question per hour per person's limit), keeping what it says next to what's already known.
      */
-    async find(who, { vehicle: rawVehicle, term: rawTerm, number: rawNumber, fresh = false, showBad = false, callId = null }) {
+    async find(who, { vehicle: rawVehicle, term: rawTerm, number: rawNumber, measure = '', fresh = false, showBad = false, callId = null }) {
       const no = deny(who, 'parts.find');
       if (no) return no;
       const vehicle = vehicleOf(rawVehicle);
-      let term = clip(rawTerm, 100).trim();
+      let term = clip(measure || rawTerm, 100).trim();
       let number = clip(rawNumber, 40).trim();
-      if (!number && looksLikePartNumber(term) && !(vehicle.make && vehicle.model && /\s/.test(term))) [number, term] = [term, ''];
+      if (!measure && !number && looksLikePartNumber(term) && !(vehicle.make && vehicle.model && /\s/.test(term))) [number, term] = [term, ''];
       if (!term && !number) return { error: 'empty' };
-      if (!number && !(vehicle.year && vehicle.make && vehicle.model)) return { error: 'vehicle' };
+      if (!number && !measure && !(vehicle.year && vehicle.make && vehicle.model)) return { error: 'vehicle' };
 
       let known = recall({ vehicle, term, number });
       let usable = known.filter((a) => !isBad(a));
@@ -163,7 +167,7 @@ export function createParts({ db, audit, now, ai, limits = { hourly: 30, daily: 
     },
 
     /** Staff add a number they know is right (from a catalogue, a past sale, the shelf). It starts confirmed. */
-    teach(who, { vehicle: rawVehicle, term, brand, partNumber, description = '', notes = '' }) {
+    teach(who, { vehicle: rawVehicle, term, brand, partNumber, description = '', notes = '', generic = false }) {
       const no = deny(who, 'parts.teach');
       if (no) return no;
       const vehicle = vehicleOf(rawVehicle);
@@ -171,7 +175,7 @@ export function createParts({ db, audit, now, ai, limits = { hourly: 30, daily: 
       const n = clip(partNumber, 40).trim();
       const tm = clip(term, 100).trim();
       if (!b || !numberKey(n)) return { error: 'number' };
-      if (!tm || !(vehicle.year && vehicle.make && vehicle.model)) return { error: 'vehicle' };
+      if (!tm || !(generic || (vehicle.year && vehicle.make && vehicle.model))) return { error: 'vehicle' };
       const [id] = save(who, { vehicle, term: tm, number: '', candidates: [{ brand: b, partNumber: n, description: clip(description, 200), notes: clip(notes, 300), sourceUrl: '', confidence: 'high' }], source: 'staff' });
       audit.record(who.email, 'part.taught', `answer:${id}`, { part: `${b} ${n}` });
       this.feedback(who, id, 'worked');

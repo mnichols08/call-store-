@@ -197,3 +197,70 @@ test('watching: off by default, a manager turns it on, the watched person sees i
   assert.match(again.text, /NAPA NWP 42/, 'accepting taught the shop');
   assert.match(again.text, /Added by staff|Confirmed by the shop/);
 });
+
+// ---------------------------------------------------------------- measurements, photos, the customer link
+const seg = (marker, body) => Buffer.concat([Buffer.from([0xff, marker, (body.length + 2) >> 8, (body.length + 2) & 255]), body]);
+const photo = () => Buffer.concat([Buffer.from([0xff, 0xd8]), seg(0xe0, Buffer.from('JFIF\0\x01\x01\0\0\x01\0\x01\0\0')), seg(0xe1, Buffer.from('Exif\0\0GPS SECRET')), seg(0xc0, Buffer.from([8, 0, 1, 0, 1, 1, 1, 0x11, 0])), seg(0xda, Buffer.from([1, 1, 0, 0, 0x3f, 0])), Buffer.from([0x12, 0x34]), Buffer.from([0xff, 0xd9])]);
+const post = (path, body, headers = {}) => fetch(base + path, { method: 'POST', redirect: 'manual', headers: { origin: base, ...headers }, body });
+
+test('the customer link: no sign-in, only for its request, measurements and photos arrive for staff, nothing else opens', async () => {
+  const olive = await signedIn();
+  const call = (await olive('/calls', { method: 'POST', form: {} })).location;
+  const id = call.split('/').pop();
+  await olive(`${call}/action`, { method: 'POST', form: { action: 'claim' } });
+  const cookie = (await olive('/')).cookie;
+
+  const made = await olive(`${call}/details/link`, { method: 'POST', form: {} });
+  assert.equal(made.status, 200);
+  const url = /value="(http[^"]+\/d\/[A-Za-z0-9_-]+)"/.exec(made.text)[1];
+  const path = new URL(url).pathname;
+  assert.ok(!web.app.details.get({ email: 'o', roles: ['owner'] }, Number(id)).links.token, 'the token isn’t kept');
+
+  const stranger = await fetch(base + path);
+  const page = await stranger.text();
+  assert.equal(stranger.status, 200);
+  assert.match(page, /Help us get the right part/);
+  assert.ok(!/Sign out|href="\/calls|href="\/customers/.test(page), 'a customer sees no staff navigation');
+  assert.equal(stranger.headers.get('referrer-policy'), 'no-referrer');
+  assert.match(stranger.headers.get('x-robots-tag'), /noindex/);
+  assert.match(stranger.headers.get('cache-control'), /no-store/);
+  assert.match(await (await fetch(`${base}${path}?type=bearing`)).text(), /Inner diameter/);
+
+  assert.equal((await fetch(base + '/d/' + 'a'.repeat(32))).status, 404, 'a wrong link says nothing');
+  assert.equal((await fetch(base + call, { redirect: 'manual' })).status, 303, 'and a link doesn’t open the staff page');
+
+  const sent = await post(`${path}/details`, 'type=bearing&unit=mm&f_id=25&f_od=52&f_width=15&note=from+a+pump', { 'content-type': 'application/x-www-form-urlencoded' });
+  assert.equal(sent.status, 303);
+  assert.match(sent.headers.get('location'), /saved=1/);
+  const wrong = await post(`${path}/details`, 'type=bearing&unit=mm&f_id=abc', { 'content-type': 'application/x-www-form-urlencoded' });
+  assert.match(wrong.headers.get('location'), /problem=1/);
+  assert.equal((await post(`${path}/details`, 'type=bearing', { origin: 'https://evil.example', 'content-type': 'application/x-www-form-urlencoded' })).status, 403, 'cross-site posts are refused');
+
+  assert.equal((await post(`${path}/photo`, photo(), { 'content-type': 'image/jpeg' })).status, 200);
+  assert.equal((await post(`${path}/photo`, Buffer.from('<script>alert(1)</script>'), { 'content-type': 'image/jpeg' })).status, 400);
+  const big = await post(`${path}/photo`, Buffer.alloc(7 * 1024 * 1024, 1), { 'content-type': 'image/jpeg' }).then((r) => r.status, () => 'connection closed');
+  assert.ok([413, 'connection closed'].includes(big), 'an oversized upload is refused or cut off');
+
+  const staff = (await olive(call)).text;
+  assert.match(staff, /<strong>Bearing<\/strong>: Inner diameter 25 mm/);
+  assert.match(staff, /From the customer/);
+  const src = /<img src="(\/calls\/\d+\/photos\/\d+)"/.exec(staff)[1];
+  const image = await fetch(base + src, { headers: { cookie } });
+  assert.equal(image.headers.get('content-type'), 'image/jpeg');
+  assert.match(image.headers.get('content-security-policy'), /sandbox/);
+  assert.ok(!Buffer.from(await image.arrayBuffer()).includes('SECRET'), 'the location text is gone');
+  assert.equal((await fetch(base + src, { redirect: 'manual' })).status, 303, 'a photo isn’t public');
+  assert.match(staff, /The customer sent a photo|Measurements filled in/);
+
+  const found = await follow(olive, await olive(`${call}/parts/find`, { method: 'POST', form: { measure: '1' } }));
+  assert.match(found.text, /BK 777/, 'staff find parts by the customer’s measurements');
+
+  await olive(`${call}/details/link/revoke`, { method: 'POST', form: {} });
+  assert.equal((await fetch(base + path)).status, 404, 'turned off');
+});
+
+test('a wrong-link guesser is slowed down', async () => {
+  let last;
+  for (let i = 0; i < 20; i += 1) last = await fetch(`${base}/d/${String(i).padStart(2, '0')}${'b'.repeat(30)}`);
+  assert.equal(last.status, 429);
+});

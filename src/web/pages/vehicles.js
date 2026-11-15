@@ -66,7 +66,10 @@ export function vehicleRoutes(router) {
     if (got.error) return ctx.notFound();
     const a = got.call.application;
     const f = ctx.form;
+    const measure = f.get('measure') === '1' ? ctx.app.details.get(ctx.who, id).details?.key ?? '' : '';
+    if (f.get('measure') === '1' && !measure) return ctx.redirect(`/calls/${id}#details`, { problem: 'Fill in all the measurements first.' });
     const result = await ctx.app.parts.find(ctx.who, {
+      measure,
       vehicle: { year: a.year, make: a.make, model: a.model, engine: a.engine, drivetrain: a.drivetrain },
       term: f.get('term') ?? '', number: f.get('number') ?? '', fresh: f.get('fresh') === '1', showBad: f.get('showBad') === '1', callId: id,
     });
