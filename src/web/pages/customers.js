@@ -1,5 +1,5 @@
 // Customers: look one up, add one, see their history.
-import { customerPortalPanel } from './portal.js';
+import { accessPanel, customerPortalPanel } from './portal.js';
 import { esc, when } from '../html.js';
 import { badge, button, empty, field, say, select } from '../ui.js';
 import { OUTCOMES, STATUS_LABEL } from '../../domain/call.js';
@@ -42,6 +42,7 @@ export function customerRoutes(router) {
 <div class="head"><h1>Customers</h1><div class="row">
 <form method="get" action="/customers" class="search" role="search"><input type="search" name="q" value="${esc(q)}" placeholder="Phone, name or account" aria-label="Search customers"><button type="submit">Search</button></form>
 ${can(ctx.who, 'customer.create') ? '<a class="btn primary" href="/customers/new">Add customer</a>' : ''}</div></div>
+${accessPanel(ctx)}
 ${list.length ? `<table class="grid"><thead><tr><th>Name</th><th>Account</th><th>Phones</th><th>Open calls</th></tr></thead><tbody>${rows}</tbody></table>` : empty(page, q ? 'No one matches' : 'No customers yet', q ? 'Try the last four digits of the phone number.' : 'Callers don’t have to be customers. Add the regulars here.')}`, { active: 'customers' });
   });
 

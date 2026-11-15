@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — scanning
+- Staff scan a customer's one-time badge (camera, photo or paste) to find them and start a call.
+- A rep's own QR lets a customer ask for access; staff approve and a join link goes out. See docs/portal.md.
+
 ## Unreleased — QR codes
 - QR codes now come from the shop's own Symbology library (`@journey-to-code/symbology`) instead of `qrcode-generator`. A test draws a code into pixels and reads it back with Symbology's decoder.
 

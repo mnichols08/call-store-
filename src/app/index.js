@@ -29,6 +29,7 @@ export function createApp({ db, now = Date.now, changed = () => {}, fetcher = gl
   const calls = createCalls(shared);
   const details = createDetails({ ...shared, nudges });
   const mailer = mailOptions.send ? mailOptions : createMailer({ db, now, fetcher, log, ...mailOptions });
-  const portal = createPortal({ ...shared, details, calls, mailer, business });
-  return { audit, details, portal, mailer, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles: createVehicles({ ...shared, sources, log }), parts, customers: createCustomers(shared), items: createItems(shared), calls, nudges, stats: createStats(shared) };
+  const customers = createCustomers(shared);
+  const portal = createPortal({ ...shared, details, calls, mailer, business, nudges, customers });
+  return { audit, details, portal, mailer, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles: createVehicles({ ...shared, sources, log }), parts, customers, items: createItems(shared), calls, nudges, stats: createStats(shared) };
 }

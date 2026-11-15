@@ -233,3 +233,82 @@ test('without a mail service, messages wait in the outbox for a manager', async 
   assert.equal(box.messages[0].to_email, 'pat@farm.com');
   void owner; void bob;
 });
+
+test('a customer’s badge is scanned by staff, once, within minutes, and tells staff who it is', async () => {
+  const s = setup();
+  const pat = (await joinAs(s, (await s.app.portal.invite(ann, s.cust)).token, 'Pat', 'pat@farm.com')).account;
+  const { token } = s.app.portal.badge(pat);
+  assert.ok(!JSON.stringify(s.db.prepare('SELECT * FROM portal_badges').all()).includes(token), 'only a hash is kept');
+  assert.equal(s.app.portal.readBadge({ email: 'x@e.com', roles: [] }, token).error, 'forbidden', 'customers can’t scan');
+  assert.equal(s.app.portal.readBadge(ann, 'nope').error, 'badge');
+  const read = s.app.portal.readBadge(ann, token);
+  assert.deepEqual([read.name, read.email, read.customer.name], ['Pat', 'pat@farm.com', 'Bubba Farms']);
+  assert.equal(s.app.portal.readBadge(bob, token).error, 'badge', 'a second scan, or a photo of it, is worth nothing');
+  const late = s.app.portal.badge(pat).token;
+  s.clock.t += (PORTAL.badgeMinutes + 1) * 60_000;
+  assert.equal(s.app.portal.readBadge(ann, late).error, 'badge', 'it expires');
+  const gone = s.app.portal.badge(pat).token;
+  s.app.portal.removeMember(manager, pat.id);
+  assert.equal(s.app.portal.readBadge(ann, gone).error, 'badge', 'and a removed person’s badge stops working');
+  assert.ok(s.db.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE action = 'portal.badge-scanned'").get().n >= 1);
+});
+
+test('badges are limited per person', async () => {
+  const s = setup();
+  const pat = (await joinAs(s, (await s.app.portal.invite(ann, s.cust)).token, 'Pat', 'pat@farm.com')).account;
+  let last;
+  for (let i = 0; i < 25; i += 1) last = s.app.portal.badge(pat);
+  assert.equal(last.error, 'slow-down');
+});
+
+test('an employee’s own code lets a customer ask for access; staff approve and a join link goes out', async () => {
+  const s = setup();
+  assert.equal(s.app.portal.repCode({ email: 'x@e.com', roles: [] }).error, 'forbidden');
+  const first = s.app.portal.repCode(ann);
+  assert.equal(s.app.portal.repInfo(first.token).rep, ann.email);
+  const second = s.app.portal.repCode(ann);
+  assert.equal(s.app.portal.repInfo(first.token).error, 'code', 'a new code turns the old one off');
+  assert.equal(s.app.portal.askAccess('z'.repeat(30), { name: 'Pat', business: 'Bubba Farms', email: 'pat@farm.com' }).error, 'code');
+  assert.equal(s.app.portal.askAccess(second.token, { name: 'Pat', business: 'Bubba Farms', email: 'nope' }).error, 'email');
+  assert.equal(s.app.portal.askAccess(second.token, { name: '', business: 'B', email: 'a@b.com' }).error, 'name');
+  assert.equal(s.app.portal.askAccess(second.token, { name: 'A', business: ' ', email: 'a@b.com' }).error, 'business');
+  assert.ok(s.app.portal.askAccess(second.token, { name: 'Pat Farmer', business: 'Bubba Farms LLC', email: 'Pat@Farm.com', phone: '555-777-8888' }).ok);
+  assert.ok(s.app.portal.askAccess(second.token, { name: 'Pat Farmer', business: 'Bubba Farms LLC', email: 'pat@farm.com' }).ok, 'asking twice is the same answer');
+  assert.equal(s.db.prepare('SELECT COUNT(*) AS n FROM access_requests').get().n, 1);
+  assert.equal(s.db.prepare('SELECT COUNT(*) AS n FROM portal_accounts').get().n, 0, 'nothing exists until staff say so');
+  assert.equal(s.sent.length, 0, 'and nothing is emailed');
+  assert.match(s.db.prepare("SELECT message FROM nudges WHERE to_email = ?").get(ann.email).message, /Pat Farmer from Bubba Farms LLC/);
+
+  assert.equal((await s.app.portal.accessRequests({ email: 'x@e.com', roles: [] })).error, 'forbidden');
+  const [req] = s.app.portal.accessRequests(ann).requests;
+  assert.equal(req.matches[0].name, 'Bubba Farms', 'staff are shown the customer it probably is');
+  assert.equal((await s.app.portal.decideAccess(ann, req.id, { action: 'approve', customerId: 9999, origin: s.origin })).error, 'customer');
+  const done = await s.app.portal.decideAccess(ann, req.id, { action: 'approve', customerId: s.cust, origin: s.origin });
+  assert.equal(done.customerId, s.cust);
+  assert.equal(s.sent.at(-1).to, 'pat@farm.com');
+  assert.match(s.sent.at(-1).text, /\/join\//);
+  assert.equal((await s.app.portal.decideAccess(ann, req.id, { action: 'approve', origin: s.origin })).error, 'missing', 'decided once');
+  const joined = s.app.portal.redeem(tokenIn(s.sent.at(-1)));
+  assert.equal(joined.error, 'token', 'the join link needs the name step first: it is an invite, not a sign-in');
+});
+
+test('approving can add a new business, and declining ends it; limits stop a flood', async () => {
+  const s = setup();
+  const { token } = s.app.portal.repCode(ann);
+  s.app.portal.askAccess(token, { name: 'Lee', business: 'Lee Towing', email: 'lee@tow.com', phone: '5553334444' });
+  s.app.portal.askAccess(token, { name: 'Moe', business: 'Moe Motors', email: 'moe@motors.com' });
+  const [lee, moe] = s.app.portal.accessRequests(manager).requests;
+  const made = await s.app.portal.decideAccess(manager, lee.id, { action: 'approve', origin: s.origin });
+  assert.ok(made.ok && made.customerId);
+  assert.equal(s.app.customers.get(manager, made.customerId).customer.name, 'Lee Towing');
+  assert.ok((await s.app.portal.decideAccess(manager, moe.id, { action: 'decline' })).ok);
+  assert.equal(s.app.portal.accessRequests(manager).requests.length, 0);
+  assert.equal(s.sent.filter((m) => m.to === 'moe@motors.com').length, 0, 'a declined request hears nothing');
+  for (let i = 0; i < 12; i += 1) s.app.portal.askAccess(token, { name: `P${i}`, business: `B${i}`, email: `p${i}@x.com` });
+  assert.equal(s.app.portal.askAccess(token, { name: 'Z', business: 'Z', email: 'z@x.com' }).error, 'slow-down');
+  s.app.portal.repCode(ann);
+  s.clock.t += 2 * 3_600_000;
+  const again = s.app.portal.repCode(ann);
+  for (let i = 0; i < 4; i += 1) s.app.portal.askAccess(again.token, { name: 'Many', business: 'Many Co', email: 'many@x.com' });
+  assert.ok(s.db.prepare("SELECT COUNT(*) AS n FROM access_requests WHERE email = 'many@x.com'").get().n <= 1, 'one pending per address');
+});

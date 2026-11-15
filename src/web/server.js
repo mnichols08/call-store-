@@ -92,7 +92,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   portalRoutes(router);
 
   const customer = createCustomerPages({ app, config, zubra, now });
-  const portal = createPortalPages({ app, config, zubra, now });
+  const portal = createPortalPages({ app, config, zubra, now, repName: (email) => people.name(email) });
   const signInLimit = createLimiter({ max: 20, windowMs: 60_000, now });
 
   function html(res, status, body, extra = {}) {
@@ -163,8 +163,22 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     return req.headers['sec-fetch-site'] === 'same-origin';
   }
 
+  // Symbology, for reading QR codes in the browser: its script and WebAssembly module, from the package.
+  const SYMBOLOGY = new URL('.', import.meta.resolve('@journey-to-code/symbology'));
+  const VENDOR = { 'vendor/qr.js': ['qr.js', 'text/javascript; charset=utf-8'], 'vendor/symbology.wasm': ['symbology.wasm', 'application/wasm'] };
+
   async function asset(url, res) {
     const name = url.pathname.slice('/assets/'.length);
+    if (VENDOR[name]) {
+      try {
+        const data = await readFile(new URL(VENDOR[name][0], SYMBOLOGY));
+        res.writeHead(200, { 'content-type': VENDOR[name][1], 'cache-control': config.production ? 'public, max-age=86400' : 'no-cache', 'x-content-type-options': 'nosniff' });
+        res.end(data);
+        return true;
+      } catch {
+        return false;
+      }
+    }
     if (!/^[a-z0-9-]+\.(css|js|webp)$/.test(name)) return false;
     try {
       const data = await readFile(join(PUBLIC, name));
@@ -182,7 +196,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const requestId = randomBytes(6).toString('hex');
     res.setHeader('x-request-id', requestId);
     // Metric labels are route patterns, never raw paths, so strangers can't make up new series.
-    res.cstoreRoute = url.pathname.startsWith('/assets/') ? '/assets/*' : url.pathname.startsWith('/staff') ? '/staff/*' : url.pathname.startsWith('/portal') || url.pathname.startsWith('/join/') ? '/portal/*' : ['/healthz', '/sw.js', '/metrics', '/events'].includes(url.pathname) ? url.pathname : 'other';
+    res.cstoreRoute = url.pathname.startsWith('/assets/') ? '/assets/*' : url.pathname.startsWith('/staff') ? '/staff/*' : url.pathname.startsWith('/portal') || url.pathname.startsWith('/join/') || url.pathname.startsWith('/hello/') || url.pathname.startsWith('/badge/') ? '/portal/*' : ['/healthz', '/sw.js', '/metrics', '/events'].includes(url.pathname) ? url.pathname : 'other';
     if (url.pathname !== '/events') {
       res.on('finish', () => {
         const ms = performance.now() - started;
@@ -196,7 +210,8 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     }
     const nonce = randomBytes(16).toString('base64');
     res.cspNonce = nonce;
-    res.csp = `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`;
+    // Only the scan page may run WebAssembly (the QR reader); everything else keeps the strict policy.
+    res.csp = `default-src 'self'; script-src 'self' 'nonce-${nonce}'${url.pathname === '/scan' ? " 'wasm-unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`;
     res.setHeader('x-content-type-options', 'nosniff');
     res.setHeader('referrer-policy', 'same-origin');
     res.setHeader('x-frame-options', 'DENY');
@@ -244,7 +259,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const customerLink = /^\/d\/([A-Za-z0-9_-]{20,80})(?:\/(details|photo))?\/?$/.exec(url.pathname);
     if (customerLink) return customer.handle(req, res, url, { token: customerLink[1], action: customerLink[2], posting, form, raw, nonce, ip: clientAddress(req, { proxies: config.proxies }) });
 
-    if (url.pathname === '/portal' || url.pathname.startsWith('/portal/') || url.pathname.startsWith('/join/')) {
+    if (url.pathname === '/portal' || url.pathname.startsWith('/portal/') || url.pathname.startsWith('/join/') || url.pathname.startsWith('/hello/') || url.pathname.startsWith('/badge/')) {
       if (await portal.handle(req, res, url, { posting, form, raw, nonce, ip: clientAddress(req, { proxies: config.proxies }) })) return;
     }
 

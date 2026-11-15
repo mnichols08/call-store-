@@ -9,11 +9,11 @@ import { UPDATE_KINDS, STAFF_KINDS, cleanEmail, currentKind, isOpenForCustomer }
 const SYSTEM = Object.freeze({ email: 'portal', roles: ['staff'] });
 const MIN = 60_000;
 const HOUR = 3_600_000;
-export const PORTAL = Object.freeze({ tokenMinutes: 30, sessionDays: 30, inviteHours: 48, inviteUses: 10, perEmailPerHour: 5, requestsPerDay: 20 });
+export const PORTAL = Object.freeze({ badgeMinutes: 10, repCodeDays: 7, accessPerCodePerHour: 10, accessPerEmailPerDay: 3, tokenMinutes: 30, sessionDays: 30, inviteHours: 48, inviteUses: 10, perEmailPerHour: 5, requestsPerDay: 20 });
 const hash = (token) => createHash('sha256').update(token).digest('hex');
 const newToken = () => randomBytes(24).toString('base64url');
 
-export function createPortal({ db, audit, now, changed, details, calls, mailer, business = 'the shop' }) {
+export function createPortal({ db, audit, now, changed, details, calls, mailer, nudges, customers, business = 'the shop' }) {
   const deny = (who, permission) => (can(who, permission) ? null : { error: 'forbidden' });
   const customerName = (id) => db.prepare('SELECT name FROM customers WHERE id = ?').get(id)?.name ?? '';
   const account = (id) => db.prepare('SELECT * FROM portal_accounts WHERE id = ?').get(id);
@@ -112,6 +112,106 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
     },
     updatesFor(callId) {
       return db.prepare('SELECT u.*, a.name AS account_name FROM portal_updates u LEFT JOIN portal_accounts a ON a.id = u.account_id WHERE call_id = ? ORDER BY u.id').all(callId);
+    },
+
+
+    // ================================================================ scanning
+    /** A customer's badge: a code to show at the counter. Short-lived, and it works once. */
+    badge(acct) {
+      if (db.prepare('SELECT COUNT(*) AS n FROM portal_badges WHERE account_id = ? AND created_at > ?').get(acct.id, now() - HOUR).n >= 20) return { error: 'slow-down' };
+      const token = newToken();
+      const t = now();
+      db.prepare('INSERT INTO portal_badges (token_hash, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(hash(token), acct.id, t, t + PORTAL.badgeMinutes * MIN);
+      return { ok: true, token, expires: t + PORTAL.badgeMinutes * MIN };
+    },
+    /** Staff scan a badge: who is it? Used up by the scan, so a photo of it later is worth nothing. */
+    readBadge(who, token) {
+      const no = deny(who, 'customer.view');
+      if (no) return no;
+      const row = typeof token === 'string' && token.length >= 20 && token.length <= 80 ? db.prepare('SELECT * FROM portal_badges WHERE token_hash = ?').get(hash(token)) : null;
+      if (!row) return { error: 'badge' };
+      const used = db.prepare('UPDATE portal_badges SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?').run(now(), row.token_hash, now());
+      if (!used.changes) return { error: 'badge' };
+      const a = account(row.account_id);
+      if (!a || a.status !== 'active') return { error: 'badge' };
+      audit.record(who.email, 'portal.badge-scanned', `customer:${a.customer_id}`, { email: a.email });
+      return { ok: true, name: a.name, email: a.email, customer: { id: a.customer_id, name: customerName(a.customer_id) } };
+    },
+
+    /** An employee's own code, for customers to scan. Making a new one turns the old one off. */
+    repCode(who) {
+      const no = deny(who, 'portal.invite');
+      if (no) return no;
+      const token = newToken();
+      const t = now();
+      db.prepare('UPDATE rep_codes SET revoked = 1 WHERE rep_email = ?').run(who.email);
+      db.prepare('INSERT INTO rep_codes (token_hash, rep_email, created_at, expires_at) VALUES (?, ?, ?, ?)').run(hash(token), who.email, t, t + PORTAL.repCodeDays * 86_400_000);
+      return { ok: true, token, expires: t + PORTAL.repCodeDays * 86_400_000 };
+    },
+    repInfo(token) {
+      const row = typeof token === 'string' && token.length >= 20 && token.length <= 80 ? db.prepare('SELECT * FROM rep_codes WHERE token_hash = ?').get(hash(token)) : null;
+      return row && !row.revoked && row.expires_at > now() ? { ok: true, rep: row.rep_email } : { error: 'code' };
+    },
+    /** A customer who scanned a rep's code says who they are. Nothing is created until staff approve. */
+    askAccess(token, { name, business, email, phone = '' }) {
+      const code = this.repInfo(token);
+      if (code.error) return code;
+      const to = cleanEmail(email);
+      const who = clip(String(name ?? '').replace(/[\u0000-\u001f]+/g, ' ').trim(), 80);
+      const biz = clip(String(business ?? '').replace(/[\u0000-\u001f]+/g, ' ').trim(), 120);
+      if (!to) return { error: 'email' };
+      if (!who) return { error: 'name' };
+      if (!biz) return { error: 'business' };
+      if (db.prepare('SELECT COUNT(*) AS n FROM access_requests WHERE rep_email = ? AND created_at > ?').get(code.rep, now() - HOUR).n >= PORTAL.accessPerCodePerHour) return { error: 'slow-down' };
+      if (db.prepare('SELECT COUNT(*) AS n FROM access_requests WHERE email = ? AND created_at > ?').get(to, now() - 24 * HOUR).n >= PORTAL.accessPerEmailPerDay) return { error: 'slow-down' };
+      const already = db.prepare("SELECT 1 FROM portal_accounts WHERE email = ? AND status = 'active'").get(to);
+      if (!already && !db.prepare("SELECT 1 FROM access_requests WHERE email = ? AND status = 'pending'").get(to)) {
+        db.prepare('INSERT INTO access_requests (rep_email, name, business, email, phone, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(code.rep, who, biz, to, clip(String(phone ?? '').replace(/[^\d+()\-. x]/g, ''), 30), now());
+        nudges?.system(code.rep, { message: `${who} from ${biz} scanned your code and wants online access. Approve it on the Customers page.` });
+        changed({ type: 'customer', id: 0 });
+      }
+      return { ok: true, rep: code.rep }; // the same answer whether or not it was new
+    },
+    /** Requests waiting for a decision, each with the existing customers it might be. */
+    accessRequests(who) {
+      const no = deny(who, 'portal.invite');
+      if (no) return no;
+      const rows = db.prepare("SELECT * FROM access_requests WHERE status = 'pending' ORDER BY id").all();
+      // The customers it might be: the whole name first, then each word of it.
+      const guess = (business) => {
+        const found = new Map();
+        for (const q of [business, ...business.split(/\s+/).filter((w) => w.length >= 3 && !/^(llc|inc|the|and|co|corp)$/i.test(w))]) {
+          for (const c of customers.search(who, q, { limit: 4 }).customers ?? []) if (found.size < 4) found.set(c.id, c);
+        }
+        return [...found.values()];
+      };
+      return { ok: true, requests: rows.map((r) => ({ ...r, matches: guess(r.business) })) };
+    },
+    /** Approve (linking to a customer we have, or adding one) and email the join link; or decline. */
+    async decideAccess(who, id, { action, customerId = null, origin = '' }) {
+      const no = deny(who, 'portal.invite');
+      if (no) return no;
+      const r = db.prepare("SELECT * FROM access_requests WHERE id = ? AND status = 'pending'").get(id);
+      if (!r) return { error: 'missing' };
+      if (action === 'decline') {
+        db.prepare("UPDATE access_requests SET status = 'declined', decided_by = ?, decided_at = ? WHERE id = ?").run(who.email, now(), id);
+        audit.record(who.email, 'portal.access-declined', `access:${id}`, {});
+        return { ok: true };
+      }
+      if (action !== 'approve') return { error: 'kind' };
+      let cid = Number(customerId) || null;
+      if (cid && !db.prepare('SELECT 1 FROM customers WHERE id = ?').get(cid)) return { error: 'customer' };
+      if (!cid) {
+        const made = customers.create(who, { kind: 'organization', name: r.business, phones: r.phone ? [{ phone: r.phone }] : [] });
+        if (made.error) return made;
+        cid = made.id;
+      }
+      const sent = await this.invite(who, cid, { email: r.email, origin });
+      if (sent.error) return sent;
+      db.prepare("UPDATE access_requests SET status = 'approved', customer_id = ?, decided_by = ?, decided_at = ? WHERE id = ?").run(cid, who.email, now(), id);
+      audit.record(who.email, 'portal.access-approved', `customer:${cid}`, { request: id });
+      changed({ type: 'customer', id: cid });
+      return { ok: true, customerId: cid };
     },
 
     // ================================================================ joining and signing in

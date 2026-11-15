@@ -41,6 +41,7 @@ const NAV = [
   ['/calls', 'Calls', 'calls', 'call.view'],
   ['/watch', 'Live', 'watch', 'call.watch'],
   ['/customers', 'Customers', 'customers', 'customer.view'],
+  ['/scan', 'Scan', 'scan', 'customer.view'],
   ['/items', 'Items', 'items', 'item.view'],
   ['/reports', 'Reports', 'reports', 'report.view'],
   ['/audit', 'Activity', 'audit', 'audit.view'],

@@ -7,6 +7,7 @@ import { qrSvg } from '../infra/qr.js';
 import { createLimiter } from './limiter.js';
 import { UPDATE_KINDS } from '../domain/portal.js';
 import { LIMITS } from '../app/details.js';
+import { PORTAL } from '../app/portal.js';
 
 const COOKIE = 'cs_portal';
 const SAYS = {
@@ -19,15 +20,17 @@ const SAYS = {
   'measure': 'A measurement doesn’t look right. Use numbers like 25, 25.4 or 1/2.',
   'missing': 'We couldn’t find that.',
   'forbidden': 'That isn’t allowed.',
+  'business': 'Please add your business’s name.',
+  'code': 'That code isn’t working any more. Ask for a new one.',
 };
 const GOOD = { sent: 'Thank you. We’ve got it.', saved: 'Saved.', mailed: 'Done. If that address can be used, a link is on its way.', invited: 'Invite sent.', removed: 'Removed.', note: 'Note added.' };
 
-export function createPortalPages({ app, config, zubra, now }) {
+export function createPortalPages({ app, config, zubra, now, repName = (e) => e }) {
   const any = createLimiter({ max: 120, windowMs: 60_000, now });
   const sends = createLimiter({ max: 10, windowMs: 10 * 60_000, now }); // anything that sends an email, per address
   const uploads = createLimiter({ max: 20, windowMs: 60_000, now });
   const bad = createLimiter({ max: 20, windowMs: 5 * 60_000, now });
-  const nav = '<nav aria-label="Main"><a href="/portal">Requests</a><a href="/portal/requests/new">New request</a><a href="/portal/team">Team</a></nav>';
+  const nav = '<nav aria-label="Main"><a href="/portal">Requests</a><a href="/portal/requests/new">New request</a><a href="/portal/team">Team</a><a href="/portal/code">My code</a></nav>';
 
   /** Emailed links must point at our own address, never at whatever Host header arrived. */
   function origin(req) {
@@ -130,13 +133,40 @@ export function createPortalPages({ app, config, zubra, now }) {
       const verify = /^\/portal\/verify\/([A-Za-z0-9_-]{20,80})$/.exec(p);
       const rq = /^\/portal\/requests\/(\d+)(?:\/(note|details|photo|photos\/(\d+)))?$/.exec(p);
       const removal = /^\/portal\/team\/(\d+)\/remove$/.exec(p);
-      const known = m || verify || rq || removal || ['/portal', '/portal/login', '/portal/sign-out', '/portal/requests', '/portal/requests/new', '/portal/team', '/portal/team/invite'].includes(p);
+      const hello = /^\/hello\/([A-Za-z0-9_-]{20,80})$/.exec(p);
+      const badge = /^\/badge\/([A-Za-z0-9_-]{20,80})$/.exec(p);
+      const known = hello || badge || p === '/portal/code' || m || verify || rq || removal || ['/portal', '/portal/login', '/portal/sign-out', '/portal/requests', '/portal/requests/new', '/portal/team', '/portal/team/invite'].includes(p);
       if (!known) return false;
       if (!any.take(ip)) { json(res, 429, { error: 'slow-down' }); return true; }
       const q = url.searchParams;
       const here = origin(req);
 
       // ---- before signing in
+      if (badge) {
+        // What a phone's camera shows if it scans a customer's badge: harmless, and it uses nothing up.
+        page(res, nonce, 200, 'Customer code', '<div class="head"><h1>This code is for the counter</h1></div><section class="panel"><p>Show it to the person helping you, and they’ll scan it with the shop’s scanner.</p></section>');
+        return true;
+      }
+      if (hello) {
+        const token = hello[1];
+        const info = app.portal.repInfo(token);
+        if (info.error) {
+          if (!bad.take(ip)) return json(res, 429, { error: 'slow-down' }), true;
+          page(res, nonce, 404, 'Code not working', `<div class="head"><h1>This code isn’t working</h1></div><section class="panel"><p>${esc(SAYS.code)}</p></section>`);
+          return true;
+        }
+        if (posting) {
+          if (!sends.take(ip)) { json(res, 429, { error: 'slow-down' }); return true; }
+          const r = app.portal.askAccess(token, { name: form.get('name') ?? '', business: form.get('business') ?? '', email: form.get('email') ?? '', phone: form.get('phone') ?? '' });
+          if (r.error) return fail(res, `/hello/${token}`, r), true;
+          return sentPage(res, nonce, 'Thank you', `${repName(info.rep)} will look at this and email you a link to finish. You don’t need to do anything else.`), true;
+        }
+        page(res, nonce, 200, 'Get set up', `<div class="head"><h1>Order parts online</h1></div>${flash(q)}
+          <form class="panel stack" method="post" action="/hello/${token}"><p>${esc(repName(info.rep))} at ${esc(config.business)} sent you here. Tell us who you are and we’ll set up your business’s account.</p>
+          <label>Your name<input name="name" maxlength="80" required autocomplete="name"></label><label>Business<input name="business" maxlength="120" required autocomplete="organization"></label>
+          <label>Email<input name="email" type="email" maxlength="120" required autocomplete="email"></label><label>Phone (optional)<input name="phone" type="tel" maxlength="30" autocomplete="tel"></label><button class="btn primary">Ask for access</button></form>`);
+        return true;
+      }
       if (m) {
         const token = m[1];
         const info = app.portal.inviteInfo(token);
@@ -196,6 +226,16 @@ export function createPortalPages({ app, config, zubra, now }) {
       if (!acct) {
         if (p.startsWith('/portal/requests/') && /\/photo$/.test(p)) { json(res, 401, { error: 'signed-out' }); return true; }
         go(res, '/portal/login');
+        return true;
+      }
+      if (p === '/portal/code' && !posting) {
+        const made = app.portal.badge(acct);
+        if (made.error) return page(res, nonce, 429, 'Slow down', `<div class="head"><h1>Please wait</h1></div><section class="panel"><p>${esc(SAYS['slow-down'])}</p></section>`, { acct }), true;
+        if (!here) return noOrigin(res, nonce), true;
+        const svg = qrSvg(`${here}/badge/${made.token}`, { label: `${acct.name}, ${acct.business}` });
+        page(res, nonce, 200, 'My code', `<div class="head"><h1>Show this at the counter</h1><a class="btn" href="/portal">Back</a></div>
+          <section class="panel stack"><p>${esc(acct.name)} · ${esc(acct.business)}</p>${svg ? `<div class="qr">${svg}</div>` : ''}
+          <p class="muted">It works once, for ${PORTAL.badgeMinutes} minutes. If it stops working, <a href="/portal/code">get a new one</a>.</p></section>`, { acct });
         return true;
       }
       if (p === '/portal/sign-out' && posting) {

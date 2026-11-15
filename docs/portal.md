@@ -14,6 +14,11 @@ Customers send parts requests online and follow them without calling. Staff see 
 - Staff pick an update on the call (looking, need more info, confirmed, in stock, ordered, on the way, ready, can't get it, done), optionally with a message and an email. The customer sees the timeline on their dashboard; everyone at the business sees the business's open requests.
 - Customers can add a note, measurements and photos (same limits and metadata stripping as the private link). Staff never see anything they shouldn't, and customers never see internal notes, helpers, outcomes or other businesses' requests.
 
+## Scanning, both ways
+- **Staff scan a customer.** Signed in, a customer opens **My code** and shows a QR on their phone. Staff open **Scan**, point the camera (or take a photo, or paste the link), and get the person and their business with "Start a call for them". A code works **once** and for ten minutes, so a photo of it is worth nothing; anyone else's camera that opens it only sees a note that it is for the counter. A removed person's codes stop working.
+- **Customers scan an employee.** On **Customers**, "My QR for customers" shows a QR (good for seven days; making a new one turns the old one off). A customer who scans it gives their name, business, email and phone. Nothing is created and nothing is emailed until staff approve it on the Customers page: pick the customer it is (suggestions from the business name) or add it as a new one, and the usual join link goes out. Declined requests hear nothing. Limits: ten requests an hour per code, three a day per address, one pending per address.
+- The reader is [Symbology](https://github.com/journey-to-code-org/symbology), run in the browser as WebAssembly (served from the package at `/assets/vendor/`). Only the scan page's policy allows WebAssembly. The picture never leaves the phone: only the code inside it is sent. The form that takes a pasted code works with scripts off.
+
 ## Email
 Set `MAIL_PROVIDER=resend`, `RESEND_API_KEY`, `MAIL_FROM`, and `PUBLIC_URL` (emailed links use it, never the Host header). Without a mail key, messages wait in **Outbox** (managers) so nothing is lost.
 

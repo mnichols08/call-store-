@@ -2,6 +2,7 @@ import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { migrate, openDatabase } from '../src/infra/db.js';
 import { createWeb } from '../src/web/server.js';
+import { qrReadFrame } from '../src/infra/qr.js';
 
 const config = { production: false, port: 0, business: 'Test Parts', zone: 'America/New_York', secret: 'x'.repeat(40), proxies: 0, publicUrl: 'https://parts.example' };
 let web;
@@ -11,12 +12,12 @@ const staffUser = { email: 'olive@example.com', roles: ['owner'] };
 
 function browser() {
   let cookie = '';
-  return async (path, { method = 'GET', form } = {}) => {
-    const response = await fetch(base + path, { method, redirect: 'manual', headers: { ...(cookie ? { cookie } : {}), ...(method === 'POST' ? { origin: base, 'content-type': 'application/x-www-form-urlencoded' } : {}) }, body: form ? new URLSearchParams(form) : undefined });
+  return async (path, { method = 'GET', form, json = false } = {}) => {
+    const response = await fetch(base + path, { method, redirect: 'manual', headers: { ...(json ? { accept: 'application/json' } : {}), ...(cookie ? { cookie } : {}), ...(method === 'POST' ? { origin: base, 'content-type': 'application/x-www-form-urlencoded' } : {}) }, body: form ? new URLSearchParams(form) : undefined });
     const set = response.headers.get('set-cookie');
     if (set) cookie = set.startsWith('cs_portal=;') || /Max-Age=0/.test(set) ? '' : set.split(';')[0];
     const text = await response.text();
-    return { status: response.status, location: response.headers.get('location'), text, set };
+    return { status: response.status, location: response.headers.get('location'), text, set, headers: response.headers };
   };
 }
 async function staff() {
@@ -152,4 +153,96 @@ test('the outbox is for managers, and staff can remove a member', async () => {
   const id = db.prepare("SELECT id FROM portal_accounts WHERE email = 'sam@farm.com'").get().id;
   assert.equal((await olive(`/portal-members/${id}/remove`, { method: 'POST', form: {} })).status, 303);
   assert.equal(db.prepare('SELECT status FROM portal_accounts WHERE id = ?').get(id).status, 'removed');
+});
+
+/** Read the address out of a QR code on a page, the way a phone would. */
+function scanCode(html) {
+  const svg = /<svg[^>]*viewBox="0 0 (\d+) [^]*?<\/svg>/.exec(html);
+  assert.ok(svg, 'a QR code is on the page');
+  const side = Number(svg[1]);
+  const scale = 6;
+  const width = side * scale;
+  const luma = new Uint8Array(width * width).fill(255);
+  for (const [, x, y, run] of svg[0].matchAll(/M(\d+) (\d+)h(\d+)v1/g)) {
+    for (let dy = 0; dy < scale; dy += 1) for (let dx = 0; dx < Number(run) * scale; dx += 1) luma[(Number(y) * scale + dy) * width + Number(x) * scale + dx] = 0;
+  }
+  return qrReadFrame({ width, height: width, luma });
+}
+
+test('a customer shows a code, staff scan it once, and can start a call for them', async () => {
+  const pat = await join((await web.app.portal.invite(staffUser, bubba)).token, 'Pat Scan', 'patscan@farm.com');
+  const shown = await pat.me('/portal/code');
+  assert.equal(shown.status, 200);
+  const address = scanCode(shown.text);
+  assert.match(address, /^https:\/\/parts\.example\/badge\/[\w-]{20,}$/, 'the code holds an address on our site');
+  // A phone camera that opens it learns nothing and uses nothing up.
+  const path = new URL(address).pathname;
+  const peek = await browser()(path);
+  assert.equal(peek.status, 200);
+  assert.match(peek.text, /for the counter/);
+  const read = await olive('/scan/badge', { method: 'POST', form: { code: address }, json: true });
+  assert.equal(read.status, 200);
+  assert.deepEqual(JSON.parse(read.text), { ok: true, customerId: bubba, name: 'Pat Scan', business: 'Bubba Farms' });
+  const twice = await olive('/scan/badge', { method: 'POST', form: { code: address }, json: true });
+  assert.equal(twice.status, 400);
+  assert.match(JSON.parse(twice.text).message, /ten minutes and work once/);
+  // Without scripts the same lookup is a page with the next step on it.
+  const second = scanCode((await pat.me('/portal/code')).text);
+  const page = await olive('/scan/badge', { method: 'POST', form: { code: second.replace('https://parts.example', '') } });
+  assert.equal(page.status, 200);
+  assert.match(page.text, /Start a call for them/);
+  assert.match(page.text, new RegExp(`name="customer" value="${bubba}"`));
+  // A customer can't use the scanner, and typing rubbish does nothing.
+  assert.equal((await pat.me('/scan/badge', { method: 'POST', form: { code: address }, json: true })).status, 401);
+  assert.equal((await olive('/scan/badge', { method: 'POST', form: { code: 'x' }, json: true })).status, 400);
+});
+
+test('only the scan page may run WebAssembly, and its reader files are served', async () => {
+  const scan = await olive('/scan');
+  assert.equal(scan.status, 200);
+  assert.match(scan.headers.get('content-security-policy'), /'wasm-unsafe-eval'/);
+  assert.match(scan.text, /src="\/assets\/scan\.js"/);
+  assert.ok(!/wasm-unsafe-eval/.test((await olive('/customers')).headers.get('content-security-policy')));
+  assert.ok(!/wasm-unsafe-eval/.test((await browser()('/portal/login')).headers.get('content-security-policy')));
+  const wasm = await fetch(`${base}/assets/vendor/symbology.wasm`);
+  assert.equal(wasm.headers.get('content-type'), 'application/wasm');
+  assert.deepEqual([...new Uint8Array(await wasm.arrayBuffer()).slice(0, 4)], [0, 0x61, 0x73, 0x6d]);
+  assert.match((await fetch(`${base}/assets/vendor/qr.js`)).headers.get('content-type'), /javascript/);
+  assert.equal((await fetch(`${base}/assets/vendor/package.json`)).status, 404, 'only the two files');
+  assert.equal((await fetch(`${base}/assets/vendor/../app.css`)).status === 200 ? 'served' : 'x', 'served', 'normal assets are untouched');
+});
+
+test('a rep’s QR: a customer scans it, asks for access, and staff approve', async () => {
+  const mine = await olive('/rep-code', { method: 'POST', form: {} });
+  assert.equal(mine.status, 200);
+  const address = scanCode(mine.text);
+  assert.match(address, /^https:\/\/parts\.example\/hello\/[\w-]{20,}$/);
+  const path = new URL(address).pathname;
+  const visitor = browser();
+  const form = await visitor(path);
+  assert.equal(form.status, 200);
+  assert.match(form.text, /Olive at Test Parts sent you here/);
+  const sent = await visitor(path, { method: 'POST', form: { name: 'Dana', business: 'Dana Diesel', email: 'dana@diesel.com', phone: '555-111-2222' } });
+  assert.equal(sent.status, 200);
+  assert.match(sent.text, /Olive will look at this/);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM outbox WHERE to_email = 'dana@diesel.com'").get().n, 0, 'nothing goes to her until staff approve');
+
+  const customers = await olive('/customers');
+  assert.match(customers.text, /Waiting for approval \(1\)/);
+  assert.match(customers.text, /Dana/);
+  assert.match(customers.text, /Add “Dana Diesel” as a new customer/);
+  const id = db.prepare("SELECT id FROM access_requests WHERE email = 'dana@diesel.com'").get().id;
+  const done = await olive(`/access/${id}/decide`, { method: 'POST', form: { action: 'approve', customer: '' } });
+  assert.equal(done.status, 303);
+  assert.match(lastMail('dana@diesel.com').body, /https:\/\/parts\.example\/join\//);
+  assert.match((await olive('/customers')).text, /Dana Diesel/);
+  const again = await olive(`/access/${id}/decide`, { method: 'POST', form: { action: 'approve', customer: '' } });
+  assert.equal(again.status, 303);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM outbox WHERE to_email = 'dana@diesel.com'").get().n, 1, 'a second decision sends nothing more');
+
+  // An old code stops working when a new one is made; a made-up one never did.
+  await olive('/rep-code', { method: 'POST', form: {} });
+  assert.equal((await visitor(path)).status, 404);
+  assert.equal((await visitor('/hello/' + 'q'.repeat(30))).status, 404);
+  assert.equal((await visitor(path, { method: 'POST', form: { name: 'A', business: 'B', email: 'a@b.com' } })).status, 404);
 });
