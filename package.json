@@ -1,0 +1,20 @@
+{
+  "name": "call-store",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Call intake for the counter: answer the phone, record the call, share the queue. Built on Zubra, Zubra UI and the Potomac kit.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node src/server.js",
+    "migrate": "node src/infra/migrate-cli.js",
+    "seed": "node src/infra/seed-cli.js",
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "@zubra/compiler": "5.17.0",
+    "@zubra/runtime": "5.17.0",
+    "@zubra/server": "5.17.0"
+  }
+}
