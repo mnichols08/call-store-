@@ -30,8 +30,10 @@ body.site { margin: 0; font: 16px/1.6 ui-sans-serif, system-ui, "Segoe UI", Robo
 .top { position: sticky; top: 0; z-index: 50; background: rgba(10, 22, 51, .96); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,.08); }
 .bar { display: flex; align-items: center; gap: 1.5rem; min-height: 4.25rem; }
 .logo { display: flex; align-items: center; gap: .7rem; text-decoration: none; color: #fff; font-weight: 800; line-height: 1.1; margin-right: auto; }
-.logo small { display: block; font-weight: 600; font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--yellow); }
-.mark { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 9px; background: var(--yellow); color: #000; font-weight: 900; font-size: 1.3rem; }
+.mark { width: 3rem; height: 3.25rem; flex: none; filter: drop-shadow(0 3px 8px rgba(255,194,14,.35)); }
+.word { display: grid; line-height: 1; }
+.word b { font: 900 italic 1.35rem/1 var(--display); text-transform: uppercase; letter-spacing: .03em; }
+.word i { margin-top: .2rem; font: 800 .7rem/1 var(--display); letter-spacing: .22em; text-transform: uppercase; color: var(--yellow); }
 .bar nav { display: flex; gap: .25rem; }
 .bar nav a { padding: .5rem .8rem; border-radius: 8px; color: #d7def0; text-decoration: none; font-weight: 600; font-size: .95rem; }
 .bar nav a:hover { background: rgba(255,255,255,.1); color: #fff; }
