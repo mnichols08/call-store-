@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — customer portal
+- Customers join by invite (QR code or email), confirm by one-time email link, and see their business's requests and updates. See docs/portal.md.
+- Staff answer web requests with status updates; Outbox page for unsent mail.
+
 ## Unreleased
 
 ### Fixed

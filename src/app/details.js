@@ -54,7 +54,7 @@ export function createDetails({ db, audit, now, changed, nudges }) {
 
   function tellHolder(c, text) {
     const to = c.assignee || c.created_by;
-    if (to) nudges.system(to, { callId: c.id, message: text });
+    if (to && to !== 'portal') nudges.system(to, { callId: c.id, message: text });
   }
 
   return {
@@ -135,6 +135,17 @@ export function createDetails({ db, audit, now, changed, nudges }) {
     customerSave(token, input) {
       const v = this.viaLink(token);
       if (v.error) return v;
+      return this.saveAsCustomer(v.call.id, input);
+    },
+    customerPhoto(token, bytes) {
+      const v = this.viaLink(token);
+      if (v.error) return v;
+      return this.photoAsCustomer(v.call.id, bytes);
+    },
+    /** The same, for a signed-in portal account whose access to the call the caller has already checked. */
+    saveAsCustomer(callId, input) {
+      const v = { call: call(callId) };
+      if (!open(v.call)) return { error: 'link-closed' };
       const r = writeDetails(v.call.id, 'customer', input);
       if (r.ok) {
         changed({ type: 'call', id: v.call.id });
@@ -142,9 +153,9 @@ export function createDetails({ db, audit, now, changed, nudges }) {
       }
       return r;
     },
-    customerPhoto(token, bytes) {
-      const v = this.viaLink(token);
-      if (v.error) return v;
+    photoAsCustomer(callId, bytes) {
+      const v = { call: call(callId) };
+      if (!open(v.call)) return { error: 'link-closed' };
       const r = writePhoto(v.call.id, 'customer', 'customer', bytes);
       if (r.ok) {
         changed({ type: 'call', id: v.call.id });
@@ -153,6 +164,15 @@ export function createDetails({ db, audit, now, changed, nudges }) {
         if (!recent) tellHolder(v.call, 'Customer sent a photo');
       }
       return r;
+    },
+
+    /** For the portal: what a request holds, and a photo's bytes, once the caller has checked the account owns the call. */
+    publicView(callId) {
+      return { details: readDetails(callId), photos: photoRows(callId) };
+    },
+    photoBytes(callId, id) {
+      const p = db.prepare('SELECT mime, bytes FROM call_photos WHERE id = ? AND call_id = ?').get(id, callId);
+      return p ? { ok: true, mime: p.mime, bytes: Buffer.from(p.bytes) } : { error: 'missing' };
     },
 
     /** Photos and links go when a call has been closed for a while. Returns how many photos. */

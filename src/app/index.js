@@ -10,6 +10,8 @@ import { createVehicles } from './vehicles.js';
 import { createParts } from './parts.js';
 import { createWatch } from './watch.js';
 import { createDetails } from './details.js';
+import { createPortal } from './portal.js';
+import { createMailer } from '../infra/mail.js';
 import { createVehicleSources } from '../infra/vehicle-sources.js';
 import { createAi } from '../infra/ai.js';
 
@@ -17,7 +19,7 @@ import { createAi } from '../infra/ai.js';
  * `changed(event)` is told after something committed, so the web layer can tell open pages.
  * `now` is a clock a test can set.
  */
-export function createApp({ db, now = Date.now, changed = () => {}, fetcher = globalThis.fetch, ai: aiOptions = {}, limits, log }) {
+export function createApp({ db, now = Date.now, changed = () => {}, fetcher = globalThis.fetch, ai: aiOptions = {}, mail: mailOptions = {}, business, limits, log }) {
   const audit = createAudit(db, now);
   const shared = { db, audit, now, changed };
   const sources = createVehicleSources({ db, fetcher, now });
@@ -26,5 +28,7 @@ export function createApp({ db, now = Date.now, changed = () => {}, fetcher = gl
   const parts = createParts({ ...shared, ai, limits, log });
   const calls = createCalls(shared);
   const details = createDetails({ ...shared, nudges });
-  return { audit, details, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles: createVehicles({ ...shared, sources, log }), parts, customers: createCustomers(shared), items: createItems(shared), calls, nudges, stats: createStats(shared) };
+  const mailer = mailOptions.send ? mailOptions : createMailer({ db, now, fetcher, log, ...mailOptions });
+  const portal = createPortal({ ...shared, details, calls, mailer, business });
+  return { audit, details, portal, mailer, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles: createVehicles({ ...shared, sources, log }), parts, customers: createCustomers(shared), items: createItems(shared), calls, nudges, stats: createStats(shared) };
 }

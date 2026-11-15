@@ -12,6 +12,8 @@ import { createNotices } from '../../vendor/kit/notice/index.js';
 import { watchRoutes } from './pages/watch.js';
 import { detailsRoutes } from './pages/details.js';
 import { createCustomerPages } from './customer.js';
+import { createPortalPages } from './portal.js';
+import { portalRoutes } from './pages/portal.js';
 import { LIMITS } from '../app/details.js';
 import { vehicleRoutes } from './pages/vehicles.js';
 import { createApp } from '../app/index.js';
@@ -52,6 +54,8 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     log,
     fetcher,
     ai: ai ?? { apiKey: config.ai?.apiKey, model: config.ai?.model, webSearch: config.ai?.webSearch, domains: config.ai?.domains },
+    mail: { provider: config.mail?.provider, apiKey: config.mail?.apiKey, from: config.mail?.from },
+    business: config.business,
     limits: { hourly: config.ai?.hourly ?? 30, daily: config.ai?.daily ?? 200 },
     changed(event) {
       if (event.type === 'nudge') {
@@ -85,8 +89,10 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   vehicleRoutes(router);
   detailsRoutes(router);
   watchRoutes(router);
+  portalRoutes(router);
 
   const customer = createCustomerPages({ app, config, zubra, now });
+  const portal = createPortalPages({ app, config, zubra, now });
   const signInLimit = createLimiter({ max: 20, windowMs: 60_000, now });
 
   function html(res, status, body, extra = {}) {
@@ -176,7 +182,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const requestId = randomBytes(6).toString('hex');
     res.setHeader('x-request-id', requestId);
     // Metric labels are route patterns, never raw paths, so strangers can't make up new series.
-    res.cstoreRoute = url.pathname.startsWith('/assets/') ? '/assets/*' : url.pathname.startsWith('/staff') ? '/staff/*' : ['/healthz', '/sw.js', '/metrics', '/events'].includes(url.pathname) ? url.pathname : 'other';
+    res.cstoreRoute = url.pathname.startsWith('/assets/') ? '/assets/*' : url.pathname.startsWith('/staff') ? '/staff/*' : url.pathname.startsWith('/portal') || url.pathname.startsWith('/join/') ? '/portal/*' : ['/healthz', '/sw.js', '/metrics', '/events'].includes(url.pathname) ? url.pathname : 'other';
     if (url.pathname !== '/events') {
       res.on('finish', () => {
         const ms = performance.now() - started;
@@ -225,7 +231,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     if (posting) {
       try {
         // Photos arrive as the picture itself, not as a form.
-        if (/^\/d\/[A-Za-z0-9_-]+\/photo\/?$/.test(url.pathname) || /^\/calls\/\d+\/photos\/?$/.test(url.pathname)) {
+        if (/^\/d\/[A-Za-z0-9_-]+\/photo\/?$/.test(url.pathname) || /^\/portal\/requests\/\d+\/photo\/?$/.test(url.pathname) || /^\/calls\/\d+\/photos\/?$/.test(url.pathname)) {
           raw = await readRaw(req, LIMITS.photoBytes + 4096);
           form = new URLSearchParams();
         } else form = await readForm(req);
@@ -237,6 +243,10 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
 
     const customerLink = /^\/d\/([A-Za-z0-9_-]{20,80})(?:\/(details|photo))?\/?$/.exec(url.pathname);
     if (customerLink) return customer.handle(req, res, url, { token: customerLink[1], action: customerLink[2], posting, form, raw, nonce, ip: clientAddress(req, { proxies: config.proxies }) });
+
+    if (url.pathname === '/portal' || url.pathname.startsWith('/portal/') || url.pathname.startsWith('/join/')) {
+      if (await portal.handle(req, res, url, { posting, form, raw, nonce, ip: clientAddress(req, { proxies: config.proxies }) })) return;
+    }
 
     const who = staff.session(req);
     res.cstoreWho = who;

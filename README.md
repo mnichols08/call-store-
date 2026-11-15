@@ -59,3 +59,6 @@ The decisions are in [`docs/`](docs/): [stack](docs/decisions/0001-stack.md), [d
 ## Not in this version
 
 Inventory and ordering (the POS stays the source of truth), telephony integration, call transcription, research assistance, team chat, PTO, notifications, offline use, several stores. See [`docs/domain.md`](docs/domain.md#whats-next).
+
+## Customer portal
+Customers can send requests, measurements and photos online and follow updates. See [docs/portal.md](docs/portal.md).

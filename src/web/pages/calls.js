@@ -5,6 +5,7 @@ import { OUTCOMES, PRIORITIES, STATUS_LABEL, canMove } from '../../domain/call.j
 import { can } from '../../domain/permissions.js';
 import { formatPhone } from '../../domain/phone.js';
 import { detailsPanel } from './details.js';
+import { callPortalPanel } from './portal.js';
 import { suggestionsPanel } from './watch.js';
 import { matchList, partsPanel, vehiclePanels } from './vehicles.js';
 
@@ -19,6 +20,7 @@ const VIEWS = [
 
 const EVENT_WORDS = {
   details: (d) => `Measurements ${d.complete ? 'filled in' : 'started'}`,
+  portal: () => 'You updated the customer',
   photo: (d) => (d.source === 'customer' ? 'The customer sent a photo' : 'A photo was added'),
   'photo-removed': () => 'A photo was removed',
   created: () => 'Call started',
@@ -208,6 +210,7 @@ async function workspace(ctx, got) {
 <div class="badges">${callBadges(page, call, people)}${call.outcome ? badge(page, 'primary', OUTCOMES[call.outcome]) : ''}<a class="btn" href="/calls/${call.id}/print" target="_blank" rel="noopener">Print</a></div></div>
 <div class="workspace">
 <div class="main-col">
+  ${callPortalPanel(ctx, got, closed)}
   <section class="panel"><h2>Caller</h2>${lookup}</section>
   ${vehiclePanel}
   <form method="post" action="/calls/${call.id}/save" id="call-form" data-call="${call.id}" data-revision="${call.revision}" autocomplete="off">

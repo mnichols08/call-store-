@@ -20,6 +20,7 @@
     "@zubra/compiler": "5.17.0",
     "@zubra/runtime": "5.17.0",
     "@zubra/server": "5.17.0",
+    "qrcode-generator": "2.0.4",
     "web-push": "3.6.7"
   }
 }

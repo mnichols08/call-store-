@@ -89,7 +89,7 @@ export function createWatch({ db, audit, now, changed, nudges, parts, calls }) {
         .run(callId, who.email, clip(String(term).trim(), 100), b, n, clip(String(description).trim(), 200), clip(String(note).trim(), 300), t);
       const id = Number(lastInsertRowid);
       audit.record(who.email, 'part.suggested', `call:${callId}`, { to, part: `${b} ${n}` });
-      nudges.send(who, { to, callId, message: `Suggests ${b} ${n}${note ? `: ${clip(String(note).trim(), 80)}` : ''}` });
+      if (to !== 'portal') nudges.send(who, { to, callId, message: `Suggests ${b} ${n}${note ? `: ${clip(String(note).trim(), 80)}` : ''}` });
       changed({ type: 'call', id: callId });
       return { ok: true, id };
     },

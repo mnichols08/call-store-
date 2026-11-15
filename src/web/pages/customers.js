@@ -1,4 +1,5 @@
 // Customers: look one up, add one, see their history.
+import { customerPortalPanel } from './portal.js';
 import { esc, when } from '../html.js';
 import { badge, button, empty, field, say, select } from '../ui.js';
 import { OUTCOMES, STATUS_LABEL } from '../../domain/call.js';
@@ -81,6 +82,7 @@ ${can(who, 'customer.edit') ? customerForm(page, c, `/customers/${c.id}`) : `<se
 <section class="panel"><h2>Contacts</h2>${c.contacts.length ? `<ul class="plain">${c.contacts.map((k) => `<li><span><strong>${esc(k.name)}</strong> ${esc(k.title)}<small>${esc(k.phone)}${k.ext ? ` x${esc(k.ext)}` : ''}</small></span></li>`).join('')}</ul>` : '<p class="muted">Nobody listed.</p>'}
 ${can(who, 'customer.edit') ? `<form method="post" action="/customers/${c.id}/contacts" class="stack">${field(page, { label: 'Name', name: 'name', required: true })}${field(page, { label: 'Title', name: 'title' })}<div class="two">${field(page, { label: 'Phone', name: 'phone', type: 'tel' })}${field(page, { label: 'Ext.', name: 'ext' })}</div>${button(page, 'Add contact', { variant: 'outline', size: 'sm' })}</form>` : ''}</section>
 ${vehiclesPanel}
+${customerPortalPanel(ctx, c)}
 <section class="panel"><h2>Call history</h2>${calls ? `<table class="grid compact"><tbody>${calls}</tbody></table>` : '<p class="muted">No calls yet.</p>'}</section>
 </aside></div>`, { active: 'customers' });
   });

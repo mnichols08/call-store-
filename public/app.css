@@ -352,3 +352,20 @@ h2.section { margin: 1.2rem 0 0.6rem; font-size: 1.15rem; }
 .photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: .5rem; display: block; }
 .upload { display: inline-flex; flex-direction: column; gap: .25rem; }
 .upload input { min-height: 44px; }
+
+/* Customer portal */
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.list li { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; padding: .5rem 0; border-bottom: 1px solid var(--cs-line, rgba(127,127,127,.25)); }
+.list li a { min-height: 44px; display: inline-flex; align-items: center; gap: .25rem; text-decoration: none; }
+form.inline { display: inline; }
+.qr { display: grid; place-items: center; padding: 1rem; background: #fff; border-radius: .75rem; max-width: 20rem; margin-inline: auto; }
+.qr svg { width: 100%; height: auto; display: block; }
+.chip[class*="status-"] { min-height: 0; padding: .15rem .7rem; font-size: .85rem; }
+.chip.status-need-info, .chip.status-unavailable { outline: 2px solid currentColor; }
+.chip.status-ready, .chip.status-on-the-way, .chip.status-done, .chip.status-confirmed, .chip.status-available { font-weight: 700; }
+pre.wrap { white-space: pre-wrap; word-break: break-word; margin: .5rem 0 0; }
+.panel, .panel > * { min-width: 0; max-width: 100%; }
+.panel p { overflow-wrap: anywhere; }
+.panel input[readonly], .panel input[size] { width: 100%; box-sizing: border-box; }
+.panel .row { flex-wrap: wrap; }
+.panel .row label { flex: 1 1 12rem; display: grid; gap: .25rem; }

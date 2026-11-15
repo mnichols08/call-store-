@@ -25,6 +25,7 @@ const STATUS_VARIANT = { open: 'neutral', working: 'success', parked: 'warning',
 /** The badges that describe a call: its status, who has it, whether it wants help. */
 export function callBadges(page, call, people) {
   const parts = [badge(page, STATUS_VARIANT[call.status] ?? 'neutral', STATUS_LABEL[call.status] ?? call.status, true)];
+  if (call.source === 'portal') parts.push(badge(page, 'outline', 'Web'));
   if (call.priority === 'high') parts.push(badge(page, 'danger', 'High priority'));
   if (call.help === 'anyone') parts.push(badge(page, 'danger', 'Needs help'));
   if (call.help === 'specific') parts.push(badge(page, 'danger', `Help: ${people.name(call.help_from)}`));
@@ -39,24 +40,25 @@ const NAV = [
   ['/items', 'Items', 'items', 'item.view'],
   ['/reports', 'Reports', 'reports', 'report.view'],
   ['/audit', 'Activity', 'audit', 'audit.view'],
+  ['/outbox', 'Outbox', 'outbox', 'portal.manage'],
 ];
 
 /**
  * A whole page. `notice` is the signed one-line message from the last form (problem / done), and
  * `live` makes the page reload when a coworker changes what it shows.
  */
-export function layout({ title, who, active = '', body, notice = {}, business, live = false, script = '' }) {
-  const nav = who
+export function layout({ title, who, active = '', body, notice = {}, business, live = false, script = '', navHtml = null, accountHtml = null, home = '/' }) {
+  const nav = navHtml ?? (who
     ? `<nav aria-label="Main">${NAV.filter(([, , , permission]) => !permission || can(who, permission))
         .map(([href, label, key]) => `<a href="${href}"${key === active ? ' aria-current="page"' : ''}>${esc(label)}</a>`).join('')}
         ${who.roles.includes('owner') ? `<a href="/staff/people"${active === 'people' ? ' aria-current="page"' : ''}>People</a>` : ''}</nav>`
-    : '';
+    : '');
   const toggle = '<button type="button" class="icon-btn theme-toggle" aria-label="Switch theme">🌙</button>';
-  const account = who
+  const account = accountHtml ?? (who
     ? `<div class="account"><form method="post" action="/calls"><button class="new-call" type="submit" title="New call (N)">New call</button></form>
         <a href="/staff/password" class="who" title="Change password"><span>${esc(who.name || who.email)}</span><small>${esc(who.roles.join(', '))}</small></a>
         <form method="post" action="/staff/sign-out"><button class="link" type="submit">Sign out</button></form>${toggle}</div>`
-    : `<div class="account">${toggle}</div>`;
+    : `<div class="account">${toggle}</div>`);
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -73,7 +75,7 @@ export function layout({ title, who, active = '', body, notice = {}, business, l
 <body${live ? ' data-live' : ''}>
 <div id="bg-layer" aria-hidden="true"></div>
 <a class="skip" href="#main">Skip to content</a>
-<header class="bar"><a class="brand" href="/">${esc(business)}<small>Call desk</small></a>${nav}${account}</header>
+<header class="bar"><a class="brand" href="${home}">${esc(business)}<small>Call desk</small></a>${nav}${account}</header>
 <main id="main">
 ${notice.problem ? `<p class="flash problem" role="alert">${esc(notice.problem)}</p>` : ''}${notice.done ? `<p class="flash done" role="status">${esc(notice.done)}</p>` : ''}
 ${body}
