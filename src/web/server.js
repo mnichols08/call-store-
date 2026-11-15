@@ -284,9 +284,26 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const page = zubra.page({ nonce });
     const notice = notices.read(url);
     const ctx = {
-      req, res, url, form, raw, who, page, app, people, config, push, params: found?.params ?? {}, wantsJson, now,
+      req, res, url, form, raw, who, page, app, people, config, push, log, params: found?.params ?? {}, wantsJson, now,
       send(title, body, { active = '', live = false, script = '' } = {}, status = 200) {
         html(res, status, page.finish(layout({ title, who, active, body, notice, business: config.business, live, script })), { 'content-security-policy': res.csp });
+      },
+      // Like send, but a region still waiting on a promise is sent when it is ready; the rest of the page goes now.
+      async stream(title, body, { active = '', live = false, script = '' } = {}, status = 200) {
+        const doc = layout({ title, who, active, body, notice, business: config.business, live, script });
+        if (!page.pending) return html(res, status, page.finish(doc), { 'content-security-policy': res.csp });
+        res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'content-security-policy': res.csp, 'x-accel-buffering': 'no' });
+        const closed = new Promise((resolve) => res.once('close', resolve));
+        try {
+          const chunks = page.chunks(doc)[Symbol.asyncIterator]();
+          for (;;) {
+            const next = await Promise.race([chunks.next(), closed.then(() => ({ done: true }))]);
+            if (next.done || res.destroyed) break;
+            res.write(next.value);
+          }
+        } finally {
+          res.end();
+        }
       },
       // A "#section" goes after the query, or the browser would treat the message as part of the fragment.
       redirect(path, { done, problem } = {}) {

@@ -14,6 +14,8 @@ const clean = (value) => (typeof value === 'string' ? value.toWellFormed() : Arr
 
 export const field = (page, props) => page.render('text-field', clean(props));
 export const select = (page, props) => page.render('select-field', clean(props));
+/** The vehicle matches; `result` is a promise, so the page doesn't wait for it. */
+export const matchList = (page, { callId, result }) => page.render('match-list', { callId: String(callId), result });
 export const stat = (page, props) => page.render('stat-card', clean(props));
 export const badge = (page, variant, text, dot = false) => page.render('status-badge', { variant: clean(variant), dot }, { default: esc(text) });
 export const button = (page, text, props = {}) => page.render('action-button', { type: 'submit', ...clean(props) }, { default: esc(text) });

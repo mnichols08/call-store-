@@ -1,13 +1,14 @@
 // The call pages: the shared queue and the workspace where a call is taken and worked.
 import { esc, ago, when, money } from '../html.js';
-import { badge, button, callBadges, empty, field, say, select } from '../ui.js';
+import { badge, button, callBadges, empty, field, matchList, say, select } from '../ui.js';
 import { OUTCOMES, PRIORITIES, STATUS_LABEL, canMove } from '../../domain/call.js';
 import { can } from '../../domain/permissions.js';
 import { formatPhone } from '../../domain/phone.js';
 import { detailsPanel } from './details.js';
 import { callPortalPanel } from './portal.js';
 import { suggestionsPanel } from './watch.js';
-import { matchList, partsPanel, vehiclePanels } from './vehicles.js';
+import { matchData, partsPanel, vehiclePanels } from './vehicles.js';
+import { bounded } from '../stream.js';
 
 const VIEWS = [
   ['active', 'All open'],
@@ -83,7 +84,7 @@ ${result.calls.length
   router.get('/calls/:id', async (ctx) => {
     const got = ctx.app.calls.get(ctx.who, Number(ctx.params.id));
     if (got.error) return ctx.notFound();
-    return ctx.send(`Call #${got.call.id}`, await workspace(ctx, got), { active: 'calls', live: true, script: '<script src="/assets/call.js" defer></script><script src="/assets/vehicle.js" defer></script>' });
+    return ctx.stream(`Call #${got.call.id}`, await workspace(ctx, got), { active: 'calls', live: true, script: '<script src="/assets/call.js" defer></script><script src="/assets/vehicle.js" defer></script>' });
   });
 
   // The ticket on paper: everything about the call on one sheet.
@@ -186,7 +187,7 @@ async function workspace(ctx, got) {
       ${can(who, 'call.assign') && !finished ? `<form method="post" action="/calls/${call.id}/action" class="row"><input type="hidden" name="action" value="assign"><label class="sr" for="assign-to">Assign to</label><select id="assign-to" name="to"><option value="">Nobody</option>${people.list().map((p) => `<option value="${esc(p.email)}"${p.email === call.assignee ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>${button(page, 'Assign', { variant: 'outline', size: 'sm' })}</form>` : ''}`;
 
   const vp = vehiclePanels(ctx, got, closed);
-  const matches = vp.deferMatch ? await matchList(ctx, call.id, vp.deferMatch.vq, vp.deferMatch.vy) : '';
+  const matches = vp.deferMatch ? matchList(page, { callId: call.id, result: bounded(() => matchData(ctx, vp.deferMatch.vq, vp.deferMatch.vy), { ms: ctx.config.lookupTimeoutMs ?? 10_000, message: 'The vehicle lookup is slow right now. Pick by hand, or search again.', onError: (e) => ctx.log?.warn('match failed', { message: e.message }) }) }) : '';
   const vehiclePanel = vp.lookupHtml || vp.savedHtml ? `<section class="panel stack" id="vehicle"><h2>Vehicle lookup</h2>
     ${vp.vehicle ? `<p>On this call: <strong>${esc(vp.vehicle)}</strong></p>` : '<p class="muted">Read the VIN, find it by year and model, or pick it by hand. The fields below fill in.</p>'}
     ${vp.lookupHtml}${matches}${vp.savedHtml}</section>` : '';

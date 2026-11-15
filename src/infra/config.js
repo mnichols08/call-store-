@@ -25,6 +25,8 @@ export const config = Object.freeze({
   // Set to expose /metrics (Prometheus format) to a scraper sending this bearer token.
   photoRetentionDays: Number(process.env.PHOTO_RETENTION_DAYS ?? 90),
   metricsToken: process.env.METRICS_TOKEN ?? '',
+  // A vehicle lookup that takes longer than this stops waiting (the rest of the page is already there).
+  lookupTimeoutMs: Number(process.env.LOOKUP_TIMEOUT_MS ?? 10_000),
   // Email to customers (one-time sign-in links, request updates). Without these they wait in the outbox.
   mail: Object.freeze({ provider: process.env.MAIL_PROVIDER ?? '', apiKey: process.env.RESEND_API_KEY ?? '', from: process.env.MAIL_FROM ?? '' }),
   // Part-number suggestions from Claude. Without a key the finder still works from what the shop has saved.

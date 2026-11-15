@@ -27,6 +27,26 @@ Each is pinned by a test, so the behaviour is recorded and a change shows up.
 - Prototype keys (`__proto__`, `constructor`) as prop or slot names pollute nothing.
 - Twenty thousand `<option>`s, five thousand siblings in a slot and sixty nested components render. Markup more than 256 elements deep is refused with advice to flatten.
 
+## Streaming, used for real
+
+The call page used to wait for the vehicle lookup (the first search of a year asks NHTSA, a few seconds) before it sent anything. Now `ctx.stream` (in `src/web/server.js`) sends the whole page at once with "Finding the closest match…" in place, and the `match-list` component (`src/web/components/match-list.zb`, a `zb-await` over a promise prop) fills in when the lookup is done. Measured in Chrome with a lookup made to take 2.5 s: the page and placeholder showed at 0.2 s, the matches at 2.6 s, no console errors, and "Use" worked on the streamed button.
+
+What it took, and what held:
+
+- **Findings 5 and 6 are handled in the app.** `bounded` (`src/web/stream.js`) gives every streamed promise a time limit (`LOOKUP_TIMEOUT_MS`, 10 s) and only ever rejects with a message written in the app, logging the real error. Tests: a lookup that never settles ends with our message; one that throws `SQLITE_CORRUPT: /var/data/secret.db` shows nothing of it.
+- **The first piece is a whole document.** It ends with `</html>`, so a slow or dropped connection still leaves a usable page. Every inline script Zubra adds carries the page's nonce, so the strict CSP needed no change.
+- **A closed tab stops the work of waiting.** `ctx.stream` stops reading the stream when the response closes; the server carries on.
+- **`x-accel-buffering: no`** is sent so a proxy doesn't hold the first piece back.
+- **A page with nothing to wait for** is sent as an ordinary page (`page.pending` is false), so the ordinary pages cost nothing.
+
+Things learned:
+
+7. `zb-await` with `value={null}` shows the *then* branch with `null`, not the pending one (so a component rendered without its promise, as the prop test does, must cope; the component uses `found?.note`). Optional chaining works in component expressions.
+8. A document that streams loads its `load` event only when the last region has arrived, so browser tooling that waits for `load` (Playwright's `goto`) sees the finished page. Use `wait_until='commit'` to watch the placeholder.
+9. Zubra's output for text built from two interpolations (`{m.make} {m.model}`) comes out as one text run (`Ford F-150`), so tests can match it as written.
+
+`test/streaming.test.js` covers all of the above, including time to the first piece (under 400 ms against a 700 ms lookup) and that the rest does wait for it.
+
 ## Speed and memory (this machine, production mode)
 
 | Test | Result |

@@ -184,14 +184,16 @@ export function vehiclePanels(ctx, got, closed) {
   return { lookupHtml, savedHtml, vehicle, vq, vy, hidden, matchHtml, deferMatch: vq && canLook ? { vq, vy } : null };
 }
 
-/** The "closest match" list. Async because the first search for a year builds that year's index. */
-export async function matchList(ctx, callId, vq, vy) {
+/**
+ * The "closest match" list, as data for the match-list component. Slow the first time a year is
+ * searched (that year's index is built from NHTSA), which is why the page streams it.
+ */
+export async function matchData(ctx, vq, vy) {
   const r = await ctx.app.vehicles.match(ctx.who, { year: Number(vy) || null, text: vq });
-  if (r.error) return `<p class="muted">${esc(say(r.error))}</p>`;
-  if (!r.matches.length) return `<p class="muted">No close match${r.year ? ` for ${r.year}` : ''}. Try fewer words, or pick by hand.</p>`;
-  return `<ul class="plain results">${r.matches.map((m) => `<li><span><strong>${esc(m.make)} ${esc(m.model)}</strong> <small>${m.year || r.year || ''}${m.score >= 95 ? ' · exact' : ''}</small></span>
-    <form method="post" action="/calls/${callId}/vehicle/use"><input type="hidden" name="year" value="${m.year || r.year || ''}"><input type="hidden" name="make" value="${esc(m.make)}"><input type="hidden" name="model" value="${esc(m.model)}"><button>Use</button></form></li>`).join('')}</ul>
-    ${r.partial ? '<p class="muted">Some makes couldn’t be checked right now, so this list may be missing a few.</p>' : ''}${r.year ? '' : '<p class="muted">Add a year for a sharper match.</p>'}`;
+  if (r.error) return { note: say(r.error), matches: [] };
+  if (!r.matches.length) return { note: `No close match${r.year ? ` for ${r.year}` : ''}. Try fewer words, or pick by hand.`, matches: [] };
+  const footnote = [r.partial ? 'Some makes couldn’t be checked right now, so this list may be missing a few.' : '', r.year ? '' : 'Add a year for a sharper match.'].filter(Boolean).join(' ');
+  return { note: '', footnote, matches: r.matches.map((m, i) => ({ key: `${i}`, make: String(m.make), model: String(m.model), year: String(m.year || r.year || ''), exact: m.score >= 95 })) };
 }
 
 export function partsPanel(ctx, got, closed) {
