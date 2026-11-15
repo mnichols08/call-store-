@@ -55,7 +55,7 @@ body.app {
 .app h1 { font-size: 1.5rem; font-weight: 650; letter-spacing: -.01em; }
 .app h2 { font-size: .95rem; font-weight: 650; }
 .app .head { margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--sys-line-soft); }
-.app .panel, .app table.grid, .app .stats > * { background: var(--sys-surface); backdrop-filter: none; -webkit-backdrop-filter: none; border: 1px solid var(--sys-line); border-radius: 10px; box-shadow: var(--sys-shadow); }
+.app .panel, .app table.grid { background: var(--sys-surface); backdrop-filter: none; -webkit-backdrop-filter: none; border: 1px solid var(--sys-line); border-radius: 10px; box-shadow: var(--sys-shadow); }
 .app .panel { padding: 1.1rem 1.25rem 1.2rem; }
 .app .grid th { background: var(--sys-raised); font-size: .7rem; font-weight: 650; letter-spacing: .06em; color: var(--sys-muted); border-bottom: 1px solid var(--sys-line); }
 .app .grid td { border-bottom-color: var(--sys-line-soft); }
@@ -91,3 +91,12 @@ body.app {
   .app .menu-btn { min-width: 44px; min-height: 44px; }
 }
 @media print { .app .shell { display: block; } .app .side, .app .topbar, .app .scrim { display: none !important; } .app main { padding: 0; } }
+
+/* Stat cards bring their own card: the grid cell stays plain so there is one border, not two. */
+.app .stats > * { background: none; border: 0; box-shadow: none; border-radius: 0; }
+/* The device-notification offer: one quiet line, not a card the size of the dashboard. */
+.app #push-panel:not([hidden]) { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; padding: .6rem 1rem; margin-bottom: 1rem; }
+.app #push-panel h2 { margin: 0; font-size: .9rem; }
+.app #push-panel p { margin: 0; flex: 1 1 12rem; }
+.app .search { gap: .4rem; }
+.app .head .row, .app .head .search { margin-left: auto; }

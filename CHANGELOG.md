@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased: design system (staff)
+- Staff screens move to a sidebar app shell: grouped navigation with icons, a New call button, the signed-in person and theme switch at the foot, and a menu drawer on phones. Neutral surfaces in light and dark, brand blue as the accent, and no photo behind staff work. Notifications offer is a single line. The public page and customer portal are unchanged for now.
+
 ## Unreleased: delivery
 - Deliveries: customers ask for it on a web request (address required), staff add it to any call, move it ready, out, delivered, and customers are told. Deliveries list by town and a printable driver sheet. Towns outside the service area are flagged, not refused. See docs/delivery.md.
 
