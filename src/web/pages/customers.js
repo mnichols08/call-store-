@@ -152,6 +152,6 @@ ${customerPortalPanel(ctx, c)}
   // The lookup the call workspace runs as you type.
   router.get('/api/customers', (ctx) => {
     const r = ctx.app.customers.search(ctx.who, ctx.url.searchParams.get('q') ?? '');
-    return ctx.json(r.error ? r : { ok: true, customers: r.customers.map((c) => ({ id: c.id, name: c.name, kind: c.kind, account_no: c.account_no, open_calls: c.open_calls, phones: c.phones.map((p) => p.phone) })) }, r.error ? 403 : 200);
+    return ctx.json(r.error ? r : { ok: true, customers: r.customers.map((c) => ({ id: c.id, name: c.name, kind: c.kind, account_no: c.account_no, open_calls: c.open_calls, exact: Boolean(c.exact), phones: c.phones.map((p) => p.phone) })) }, r.error ? 403 : 200);
   });
 }

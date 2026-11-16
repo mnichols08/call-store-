@@ -8,6 +8,7 @@ For whoever looks after the call desk. The owner's version is [owner-sheet.md](o
 | --- | --- | --- |
 | The site won't load | App stopped or host is down | Check `/healthz`. In Railway, open the service, read the latest deploy log, and redeploy the last good deploy. |
 | It loads but a page errors | A bad deploy | Roll back to the previous deploy in Railway. The database is untouched by a rollback. |
+| The owner lost their password | Signed out everywhere, nobody else is an owner | In a shell on the host (`railway ssh`): `npm run recover-owner`. It prints a one-time link that sets a new password. Nothing is deleted. With more than one owner, add the email. |
 | Everyone is signed out | `SESSION_SECRET` changed | Put the old value back. |
 | Data is missing | The volume wasn't mounted (`DATABASE_PATH` must be on it) | Fix the mount, then restore the newest backup if needed. |
 | Online parts lookup says it can't help | The AI, NHTSA or fueleconomy service is down or the key is wrong | Nothing breaks: staff look parts up by hand. Check the keys in the host's variables. |

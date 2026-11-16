@@ -74,7 +74,7 @@ let wait;
 box?.addEventListener('input', () => {
   clearTimeout(wait);
   const q = box.value.trim();
-  if (q.length < 2) {
+  if (q.length < (/^#?\d+$/.test(q) ? 1 : 2)) {
     results.replaceChildren();
     return;
   }
@@ -90,6 +90,21 @@ box?.addEventListener('input', () => {
       results.append(none);
     }
   }, 150);
+});
+
+// Enter on a customer number picks that customer straight away. Anything else lists the matches.
+box?.form?.addEventListener('submit', async (event) => {
+  const q = box.value.trim();
+  if (!/^#?\d+$/.test(q)) return;
+  event.preventDefault();
+  clearTimeout(wait);
+  const response = await fetch(`/api/customers?q=${encodeURIComponent(q)}`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' }).catch(() => null);
+  const customers = response?.ok ? (await response.json()).customers : null;
+  if (!customers?.[0]?.exact) return box.form.submit();
+  const item = row(customers[0]);
+  results.replaceChildren(item);
+  await window.callFlush?.();
+  item.querySelector('form').submit();
 });
 
 function row(c) {

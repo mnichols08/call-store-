@@ -21,6 +21,26 @@ test('customers are found by phone in any format, by its last digits, by name, a
   assert.equal(app.customers.get(ann, org.id).customer.phones.length, 2);
 });
 
+test('a bare number means that customer: the account number first, then the record, then the rest', () => {
+  const { app } = freshApp();
+  app.customers.create(ann, { name: 'Phone Has It', phones: [{ phone: '304-555-0965' }] }); // id 1
+  app.customers.create(ann, { name: 'Named 965 Supply' }); // id 2
+  const acct = app.customers.create(ann, { name: 'Ridge Garage', account_no: '965' }); // id 3
+  const found = app.customers.search(ann, '965').customers;
+  assert.deepEqual(found.map((c) => c.name), ['Ridge Garage', 'Named 965 Supply'], 'three digits are too few to be a phone');
+  assert.equal(found[0].exact, true);
+  assert.equal(found[1].exact, undefined);
+  assert.equal(app.customers.search(ann, '#965').customers[0].id, acct.id);
+  // No account 2, so the record with that id.
+  const byId = app.customers.search(ann, '2').customers;
+  assert.equal(byId[0].name, 'Named 965 Supply');
+  assert.equal(byId[0].exact, true);
+  // An account number beats a record id.
+  app.customers.create(ann, { name: 'Account Two', account_no: '2' });
+  assert.deepEqual(app.customers.search(ann, '2').customers.slice(0, 2).map((c) => c.name), ['Account Two', 'Named 965 Supply']);
+  assert.equal(app.customers.search(ann, '5550965').customers[0].exact, undefined, 'a phone number is not a customer number');
+});
+
 test('customer checks: a name is needed, account numbers are unique, phones must be real', () => {
   const { app } = freshApp();
   assert.equal(app.customers.create(ann, { name: ' ' }).error, 'name');

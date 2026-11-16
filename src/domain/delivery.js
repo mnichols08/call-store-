@@ -21,11 +21,15 @@ export function inArea(town, shop = SHOP) {
   return deliveryTowns(shop).some((x) => x.town.toLowerCase().replace(/^mt\.?\s/, 'mountain ') === t);
 }
 
-/** What was typed, made tidy: `{ ok, town, address, note, outside }`, or `{ error: 'address' }` when there's nowhere to take it. */
-export function cleanDelivery(input, shop = SHOP) {
+/**
+ * What was typed, made tidy: `{ ok, town, address, note, outside }`, or `{ error: 'address' }` when
+ * there's nowhere to take it. `known` is the address on the customer's account, or `true` when the
+ * shop knows where they are without one written down: then nothing has to be typed.
+ */
+export function cleanDelivery(input, shop = SHOP, { known = false } = {}) {
   const town = plain(input?.town, 60);
-  const address = plain(input?.address, 200);
+  const address = plain(input?.address, 200) || (typeof known === 'string' ? plain(known, 200) : '');
   const note = plain(input?.note, 200);
-  if (!address) return { error: 'address' };
-  return { ok: true, town, address, note, outside: town ? !inArea(town, shop) : true };
+  if (!address && !known) return { error: 'address' };
+  return { ok: true, town, address, note, outside: town ? !inArea(town, shop) : !known };
 }
