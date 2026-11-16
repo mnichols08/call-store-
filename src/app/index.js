@@ -37,7 +37,7 @@ export function createApp({ db, now = Date.now, changed = () => {}, fetcher = gl
   const mailer = mailOptions.send ? mailOptions : createMailer({ db, now, fetcher, log, ...mailOptions });
   const texter = smsOptions.send ? smsOptions : createTexter({ db, now, fetcher, log, ...smsOptions });
   const customers = createCustomers(shared);
-  const portal = createPortal({ ...shared, details, calls, mailer, business, nudges, customers });
+  const portal = createPortal({ ...shared, details, calls, mailer, texter, business, nudges, customers });
   const hours = createHours({ ...shared, zone });
   const orders = createOrders({ ...shared, ai, customers, log });
   const delivery = createDelivery({ ...shared, portal });
