@@ -3,7 +3,7 @@
 Special orders written in the counter notebook (line code, part number, where it was ordered from, customer) can be brought in from a photo.
 
 ## How it works
-1. **Orders → Scan a page** (owner and managers). Take a photo of a page, flat and in good light, with the whole page in frame.
+1. **Orders → Scan a page** (owner and managers). On a computer, press **Scan a page with your phone** and point your phone at the code: it signs you in on the phone (once, for five minutes) and opens this page there. The camera is only offered on phone-sized touch screens. Take a photo of a page, flat and in good light, with the whole page in frame.
 2. The browser redraws the photo at 1,600 px (this also drops camera metadata such as location) and sends it to the server, which sends it to Claude Haiku to read. The photo is **not kept**.
 3. You get a form with one editable line per order, the date of the page, and a customer match for each name (one clear match is chosen; several are offered). Fields the AI wasn't sure of are outlined in red. A weekday in the header that doesn't fit the date is flagged. Crossed-out lines start unticked.
 4. Nothing is saved until you press **Save these orders**. A line already saved for the same day (same code, part number and customer) is skipped, so saving a page twice is safe.
