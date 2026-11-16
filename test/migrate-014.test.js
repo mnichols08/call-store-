@@ -16,7 +16,7 @@ test('014 keeps accounts, sessions, tokens and updates, and makes email optional
   db.prepare("INSERT INTO portal_sessions (token_hash, account_id, created_at, expires_at) VALUES ('h1', 7, 1, 9999999999999)").run();
   db.prepare("INSERT INTO portal_tokens (token_hash, purpose, email, account_id, created_at, expires_at) VALUES ('t1', 'login', 'bo@example.com', 7, 1, 2)").run();
 
-  assert.deepEqual(migrate(db), ['014_people_sign_in.sql']);
+  assert.equal(migrate(db)[0], '014_people_sign_in.sql');
   assert.equal(db.prepare('SELECT email FROM portal_accounts WHERE id = 7').get().email, 'bo@example.com');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM portal_sessions WHERE account_id = 7').get().n, 1, 'the session survived');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM portal_tokens WHERE account_id = 7').get().n, 1);

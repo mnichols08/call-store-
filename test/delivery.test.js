@@ -134,3 +134,26 @@ test('a customer on file is delivered to the address the shop knows; a cash cust
   assert.equal(app.delivery.setKnown(owner, true).ok, true);
   assert.equal(app.delivery.set(ann, call, {}).ok, true);
 });
+
+test('one tap each: deliver, out, delivered closes the call as sold; ordered and waiting park it with the reason', async () => {
+  const { app, call } = setup();
+  assert.equal(app.delivery.set(ann, call, {}).ok, true, 'a customer on file: nothing to type');
+  assert.equal((await app.delivery.status(ann, call, 'out', {})).ok, true);
+  assert.equal(app.calls.get(ann, call).call.status !== 'closed', true, 'still open while it is on the truck');
+  assert.equal((await app.delivery.status(ann, call, 'delivered', {})).ok, true);
+  const closed = app.calls.get(ann, call).call;
+  assert.equal(closed.status, 'closed');
+  assert.equal(closed.outcome, 'sold');
+
+  const other = app.calls.create(ann, { request: 'Alternator' }).id;
+  assert.equal(app.calls.wait(ann, other, 'nonsense').error, 'wrong-status');
+  assert.equal(app.calls.wait(ann, other, 'ordered').ok, true);
+  let c = app.calls.get(ann, other).call;
+  assert.deepEqual([c.status, c.waiting, c.assignee], ['parked', 'ordered', ann.email], 'whoever ordered it keeps it');
+  assert.equal(app.calls.wait(ann, other, 'customer').ok, true, 'the reason can change while parked');
+  assert.equal(app.calls.get(ann, other).call.waiting, 'customer');
+  assert.equal(app.calls.move(ann, other, 'working').ok, true);
+  assert.equal(app.calls.get(ann, other).call.waiting, '', 'resuming clears the reason');
+  assert.equal(app.calls.finish(ann, other, { outcome: 'no-sale' }, 'closed').ok, true);
+  assert.equal(app.calls.wait(ann, other, 'ordered').error, 'wrong-status', 'a closed call is not waiting on anything');
+});

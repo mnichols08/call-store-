@@ -13,7 +13,7 @@ export function saveDelivery({ db, now }, callId, input, by, { known = false } =
   return { ok: true, outside: d.outside };
 }
 
-export function createDelivery({ db, audit, now, changed, portal }) {
+export function createDelivery({ db, audit, now, changed, portal, calls }) {
   const deny = (who, permission) => (can(who, permission) ? null : { error: 'forbidden' });
   const call = (id) => db.prepare('SELECT id, status, source FROM calls WHERE id = ?').get(id);
   const row = (id) => db.prepare('SELECT * FROM call_delivery WHERE call_id = ?').get(id) ?? null;
@@ -72,6 +72,8 @@ export function createDelivery({ db, audit, now, changed, portal }) {
       db.prepare('UPDATE call_delivery SET status = ?, updated_at = ?, delivered_at = ? WHERE call_id = ?').run(status, at, status === 'delivered' ? at : null, callId);
       db.prepare('UPDATE calls SET revision = revision + 1, updated_at = ? WHERE id = ?').run(at, callId);
       audit.record(who.email, `delivery.${status}`, `call:${callId}`, {});
+      // Delivered is the end of the job: the call closes as sold, so nobody has to go back and do it.
+      if (status === 'delivered' && calls && !['closed', 'resolved'].includes(call(callId).status)) calls.finish(who, callId, { outcome: 'sold' }, 'closed');
       changed({ type: 'call', id: callId });
       if (call(callId).source === 'portal' && ['out', 'delivered'].includes(status)) {
         await portal.postUpdate(who, callId, { kind: status === 'out' ? 'on-the-way' : 'done', message: status === 'out' ? 'Out for delivery.' : 'Delivered.', origin });

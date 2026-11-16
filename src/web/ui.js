@@ -2,7 +2,7 @@
 // components (text-field, select-field, status-badge, action-button, alert-banner, stat-card,
 // empty-state) so a page says what it shows and not how.
 import { esc } from './html.js';
-import { STATUS_LABEL } from '../domain/call.js';
+import { STATUS_LABEL, WAITING } from '../domain/call.js';
 import { can } from '../domain/permissions.js';
 
 /**
@@ -28,6 +28,7 @@ const STATUS_VARIANT = { open: 'neutral', working: 'success', parked: 'warning',
 /** The badges that describe a call: its status, who has it, whether it wants help. */
 export function callBadges(page, call, people) {
   const parts = [badge(page, STATUS_VARIANT[call.status] ?? 'neutral', STATUS_LABEL[call.status] ?? call.status, true)];
+  if (call.status === 'parked' && WAITING[call.waiting]) parts[0] = badge(page, 'warning', WAITING[call.waiting], true);
   if (call.source === 'portal') parts.push(badge(page, 'outline', 'Web'));
   if (call.priority === 'high') parts.push(badge(page, 'danger', 'High priority'));
   if (call.help === 'anyone') parts.push(badge(page, 'danger', 'Needs help'));

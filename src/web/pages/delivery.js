@@ -19,6 +19,9 @@ export const townSelect = (name, value = '') => {
   return `<select name="${name}" aria-label="Town"><option value="">Choose a town…</option>${towns.map((t) => `<option value="${esc(t.value)}"${t.value === value ? ' selected' : ''}>${esc(t.value)}</option>`).join('')}<option value="Somewhere else"${value && !known ? ' selected' : ''}>Somewhere else (we’ll check)</option></select>`;
 };
 
+/** One button per step a delivery can take next; the first is the usual one. */
+export const deliverySteps = (callId, d, back = '') => NEXT[d.status].map((s, i) => `<form method="post" action="/calls/${callId}/delivery/status"><input type="hidden" name="status" value="${s}">${back ? `<input type="hidden" name="back" value="${back}">` : ''}<button class="btn${i === 0 ? ' primary' : ''}">${esc(NEXT_LABEL[s])}</button></form>`).join('');
+
 export function deliveryPanel(ctx, got, closed) {
   const { call } = got;
   const { who, app, config } = ctx;
@@ -43,7 +46,7 @@ const stop = (d, ctx) => `<tr><td class="num"><a href="/calls/${d.call_id}">#${d
   <td><strong>${esc(d.customer_name || d.caller_name || 'Unknown')}</strong><small>${esc(formatPhone(d.customer_phone || d.caller_phone || ''))}</small></td>
   <td>${esc(d.request || d.part_numbers || '')}</td>
   <td>${esc(d.address || d.customer_address || ON_FILE)}<small>${esc(d.town)}${d.outside ? ' · outside the usual area' : ''}${d.note ? ` · ${esc(d.note)}` : ''}</small></td>
-  <td>${badge(ctx.page, VARIANT[d.status], STATUS_LABEL[d.status])}</td></tr>`;
+  <td>${badge(ctx.page, VARIANT[d.status], STATUS_LABEL[d.status])}${d.status !== 'delivered' && can(ctx.who, 'call.edit') ? `<div class="row steps">${deliverySteps(d.call_id, d, 'list')}</div>` : ''}</td></tr>`;
 
 const knownSetting = (on) => `<section class="panel stack"><h2>Addresses</h2>
   <p>${on ? 'A customer on file is delivered to the address the shop already has, so nobody has to type it. The cash customer (account 0, or no customer on the call) is always asked for one.' : 'Every delivery asks for an address, even for customers on file.'}</p>
@@ -54,13 +57,16 @@ export function deliveryRoutes(router) {
     const id = Number(ctx.params.id);
     const r = ctx.app.delivery.set(ctx.who, id, { town: ctx.form.get('town'), address: ctx.form.get('address'), note: ctx.form.get('note') });
     if (r.error === 'forbidden') return ctx.forbidden();
-    return ctx.redirect(`/calls/${id}#delivery`, r.error ? { problem: words(r.error) } : { done: r.outside ? 'Saved. That town is outside the usual delivery area, so check it with the customer.' : 'Saved.' });
+    return ctx.redirect(`/calls/${id}#wrap`, r.error ? { problem: words(r.error) } : { done: r.outside ? 'Set for delivery. That town is outside the usual delivery area, so check it with the customer.' : 'Set for delivery.' });
   });
   router.post('/calls/:id/delivery/status', async (ctx) => {
     const id = Number(ctx.params.id);
     const r = await ctx.app.delivery.status(ctx.who, id, ctx.form.get('status') ?? '', { origin: originOf(ctx) });
     if (r.error === 'forbidden') return ctx.forbidden();
-    return ctx.redirect(`/calls/${id}#delivery`, r.error ? { problem: words(r.error) } : { done: 'Updated.' });
+    const status = ctx.form.get('status');
+    const done = status === 'delivered' ? 'Delivered. The call is closed as sold.' : status === 'out' ? 'Out for delivery.' : 'Ready to go.';
+    if (ctx.form.get('back') === 'list') return ctx.redirect(new URL(ctx.req.headers.referer ?? '/deliveries', 'http://x').pathname === '/' ? '/' : '/deliveries', r.error ? { problem: words(r.error) } : { done: `#${id}: ${done}` });
+    return ctx.redirect(`/calls/${id}#wrap`, r.error ? { problem: words(r.error) } : { done });
   });
   router.post('/calls/:id/delivery/remove', (ctx) => {
     const id = Number(ctx.params.id);

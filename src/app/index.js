@@ -44,6 +44,6 @@ export function createApp({ db, now = Date.now, changed = () => {}, fetcher = gl
   const portal = createPortal({ ...shared, details, calls, mailer, texter, business, nudges, customers });
   const hours = createHours({ ...shared, zone });
   const orders = createOrders({ ...shared, ai, customers, log });
-  const delivery = createDelivery({ ...shared, portal });
+  const delivery = createDelivery({ ...shared, portal, calls });
   return { audit, lines, finder, details, portal, mailer, texter, hours, orders, delivery, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles, parts, customers, items: createItems(shared), calls, nudges, stats: createStats(shared) };
 }
