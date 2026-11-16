@@ -112,9 +112,12 @@ ${partsUse}
     const { page, app, people, config } = ctx;
     const events = app.audit.recent(200);
     return ctx.send('Activity', `<div class="head"><h1>Activity</h1></div>
-${events.length ? `<table class="grid compact"><thead><tr><th>When</th><th>Who</th><th>What</th><th>On</th></tr></thead><tbody>${events.map((e) => `<tr><td class="muted">${esc(when(e.at, config.zone))}</td><td>${esc(people.name(e.actor))}</td><td>${badge(page, 'outline', e.action)}</td><td>${subjectLink(e.subject)}</td></tr>`).join('')}</tbody></table>` : empty(page, 'Nothing has happened yet')}`, { active: 'audit' });
+${events.length ? `<table class="grid compact"><thead><tr><th>When</th><th>Who</th><th>What</th><th>On</th></tr></thead><tbody>${events.map((e) => `<tr><td class="muted">${esc(when(e.at, config.zone))}</td><td>${esc(people.name(e.actor))}</td><td><span title="${esc(e.action)}">${badge(page, 'outline', actionWords(e.action))}</span></td><td>${subjectLink(e.subject)}</td></tr>`).join('')}</tbody></table>` : empty(page, 'Nothing has happened yet')}`, { active: 'audit' });
   });
 }
+
+const ACTION_WORDS = { 'call.created': 'Call started', 'call.claimed': 'Call taken', 'call.outcome': 'Call finished', 'call.help-requested': 'Asked for help', 'call.link-made': 'Link made', 'portal.request': 'Portal request', 'portal.joined': 'Joined the portal', 'portal.invited': 'Portal invite', 'portal.badge-scanned': 'Badge scanned', 'delivery.set': 'Delivery set', 'hours.set': 'Hours changed', 'orders.saved': 'Orders saved', 'orders.read': 'Orders read', 'item.created': 'Item added', 'customer.imported': 'Customers imported' };
+const actionWords = (a) => ACTION_WORDS[a] ?? a.replace(/[.\-_]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
 
 function subjectLink(subject) {
   const [kind, id] = subject.split(':');

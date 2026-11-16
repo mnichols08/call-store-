@@ -136,3 +136,12 @@ body.app {
 /* Today: how long a call has waited */
 .app .plain li .wait { font-variant-numeric: tabular-nums; color: #4a5470; white-space: nowrap; opacity: 1; }
 .app .plain li .wait.late { color: #a40000; font-weight: 650; }
+
+/* hours form and activity */
+.app .hform label { display: grid; gap: .3rem; font-weight: 600; font-size: .9rem; align-content: start; }
+.app .hform input { width: 100%; min-height: 2.5rem; }
+.app form.stack > div > button.primary { width: auto; padding-inline: 1.4rem; }
+.app table.hours th { width: 9rem; }
+.app form.stack > div > button.btn.primary:not(.x1):not(.x2), :root[data-theme='light'] .app form.stack > div > button.btn.primary:not(.x1):not(.x2) { background: var(--sys-accent); color: #fff; border-color: transparent; }
+.app table.hours { width: 100%; }
+.app table.hours tbody { display: table; width: 100%; }

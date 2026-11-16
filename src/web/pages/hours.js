@@ -20,9 +20,9 @@ export function hoursRoutes(router) {
         <table class="grid compact hours"><tbody>${week.map((r) => `<tr${r.today ? ' class="today"' : ''}><th scope="row">${esc(r.day)}</th><td>${esc(r.hours)}</td></tr>`).join('')}</tbody></table></section>
       <section class="panel stack"><h2>Closures and special hours</h2>
         <form method="post" action="/hours" class="stack">
-          <div class="two"><label>Date<input type="date" name="date" required></label><label>What for<input name="note" maxlength="60" placeholder="Thanksgiving"></label></div>
-          <div class="two"><label>Opens (special hours only)<input type="time" name="open"></label><label>Closes<input type="time" name="close"></label></div>
-          <p class="muted">Leave the times empty to close the whole day.</p><button class="btn primary">Save</button></form>
+          <div class="two hform"><label>Date<input type="date" name="date" required></label><label>What for<input name="note" maxlength="60" placeholder="Thanksgiving"></label></div>
+          <div class="two hform"><label>Opens (special hours only)<input type="time" name="open"></label><label>Closes<input type="time" name="close"></label></div>
+          <p class="muted">Leave the times empty to close the whole day.</p><div><button class="btn primary">Save</button></div></form>
         ${closures.length ? `<table class="grid compact"><thead><tr><th>Date</th><th>What</th><th></th></tr></thead><tbody>${closures.map((c) => `<tr><td>${esc(c.date)}</td><td>${esc(c.note || '')} ${c.open ? `<small>${esc(c.open)} to ${esc(c.close)}</small>` : '<small>Closed</small>'}</td>
           <td><form method="post" action="/hours/remove"><input type="hidden" name="date" value="${esc(c.date)}"><button class="link">Remove</button></form></td></tr>`).join('')}</tbody></table>` : '<p class="muted">None coming up.</p>'}</section>`, { active: 'hours' });
   });
