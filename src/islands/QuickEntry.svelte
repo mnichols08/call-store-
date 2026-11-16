@@ -1,8 +1,10 @@
 <script>
   // Quick entry: type a line the way you'd say it, see what it understood, press Enter. The same
-  // reader as the server (src/domain/quickline.js), so what shows here is what gets saved.
+  // reader as the server (src/domain/quickline.js), so what shows here is what gets saved. A VIN is
+  // decoded, paint shows as a paint card, and each part line gets part-number suggestions from the
+  // queue. Each line is worked down the list: found, need to order, can't get.
   import { untrack } from 'svelte';
-  import { carryVehicle, parseLine, sayLine, sayVehicle } from '../domain/quickline.js';
+  import { carryVehicle, parseLine, sayLine, sayPaint, sayVehicle } from '../domain/quickline.js';
 
   const props = $props();
   const config = untrack(() => props.config);
@@ -22,19 +24,46 @@
   const reading = $derived(text.trim() ? parseLine(text) : null);
   const preview = $derived(reading && reading.kind !== 'empty' ? sayLine(reading, carryVehicle(current, reading)) : '');
 
-  // Lines grouped under the vehicle they are for.
+  // Lines grouped under the vehicle they are for. A VIN line starts a group and shows its VIN.
   const groups = $derived.by(() => {
     const out = [];
     for (const l of lines) {
       const car = sayVehicle(l.vehicle);
-      if (!out.length || out.at(-1).car !== car) out.push({ car, items: [] });
+      if (!out.length || out.at(-1).car !== car || (l.kind === 'vehicle' && l.vin)) out.push({ car, vin: l.kind === 'vehicle' ? l.vin : '', decoded: l.vinDecoded, items: [] });
       if (l.kind !== 'vehicle') out.at(-1).items.push(l);
     }
     return out;
   });
 
-  const say = (l) => [l.qty > 1 ? `${l.qty} ×` : '', l.part || (l.partNumbers ? `Part ${l.partNumbers}` : '')].filter(Boolean).join(' ');
-  const WHY = { empty: 'Type a part, a vehicle, or both.', 'too-many': 'That’s the most lines one call can hold. Start a second call.', closed: 'This call is closed.', forbidden: 'You can’t change this call.', missing: 'That line is gone. Reload the page.' };
+  const say = (l) => [l.qty > 1 ? `${l.qty} ×` : '', l.paint ? sayPaint(l.paint) : l.part || (l.partNumbers ? `Part ${l.partNumbers}` : '')].filter(Boolean).join(' ');
+  const WHY = { empty: 'Type a part, a vehicle, or both.', 'too-many': 'That’s the most lines one call can hold. Start a second call.', closed: 'This call is closed.', forbidden: 'You can’t change this call.', missing: 'That line is gone. Reload the page.', status: 'Pick found, need to order, can’t get or open.' };
+  const STATUS = [['open', 'Open'], ['found', 'Found it'], ['order', 'Need to order'], ['cant', 'Can’t get']];
+  const SUGGEST = {
+    queued: 'Looking for part numbers…', working: 'Looking for part numbers…',
+    none: 'No part numbers found. Use the part finder below, or teach one.',
+    vehicle: 'Part numbers wait for the vehicle: type the year and model, or the VIN.',
+    limited: 'The shop’s AI limit is reached for now. Saved answers only.',
+    off: 'No saved answers yet, and the AI isn’t set up.',
+    failed: 'The part number search didn’t work this time.',
+  };
+  const amount = (p) => (p.amount !== null && p.amount !== undefined ? `${p.amount} ${p.unit}` : '—');
+
+  // The queue answers in the background: redraw when it does (the page's live events call this), and
+  // look again every few seconds while a line is still waiting, in case an event was missed.
+  async function refresh() {
+    try {
+      const response = await fetch(`/calls/${config.callId}/lines`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+      const result = await response.json();
+      if (response.ok && result.ok && !busy) lines = result.lines;
+    } catch {}
+  }
+  window.refreshLines = refresh;
+  const waiting = $derived(lines.some((l) => l.suggest === 'queued' || l.suggest === 'working'));
+  $effect(() => {
+    if (!waiting) return;
+    const timer = setInterval(refresh, 4000);
+    return () => clearInterval(timer);
+  });
 
   // The page's own form saves the vehicle fields and the revision; after a line changes them, put the new values there.
   function syncForm(result) {
@@ -59,6 +88,7 @@
         lines = result.lines;
         application = result.application;
         syncForm(result);
+        problem = result.vinProblem ?? '';
         return true;
       }
       problem = response.status === 401 ? 'You’ve been signed out. Sign in again; what you typed is still here.' : WHY[result.error] ?? 'Couldn’t save that line.';
@@ -82,7 +112,7 @@
     if (busy || !editing) return;
     if (await send({ action: 'edit', line: editing.id, text: editing.text })) editing = null;
   }
-  const toggle = (l) => send({ action: 'done', line: l.id, done: l.done ? '0' : '1' });
+  const setStatus = (l, status) => send({ action: 'status', line: l.id, status });
   const remove = (l) => send({ action: 'remove', line: l.id });
   const onKey = (event) => { if (event.key === 'Escape') { text = ''; problem = ''; } };
 
@@ -92,7 +122,7 @@
 <div class="qe">
   {#if !closed}
     <form onsubmit={add} class="qe-form">
-      <label class="sr" for="qe-text">Type a part, a vehicle, or both</label>
+      <label class="sr" for="qe-text">Type a part, a vehicle, a VIN or paint</label>
       <div class="qe-row">
         <input id="qe-text" bind:this={input} bind:value={text} onkeydown={onKey} autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="200"
           placeholder={lines.length ? 'Next part, or a new vehicle…' : '90 eclipse front brakes'} enterkeyhint="send" />
@@ -103,10 +133,12 @@
           <span class="qe-say">{preview}</span>
           {#if reading.guessed.length}<span class="qe-guess">a guess: check the {reading.guessed.join(' and ')}</span>{/if}
           {#if reading.partIncomplete}<span class="qe-guess">which part?</span>{/if}
+          {#if reading.vin}<span class="qe-guess">VIN: it’s decoded when you press Enter</span>{/if}
+          {#if reading.paint && !reading.paint.code}<span class="qe-guess">which paint code?</span>{/if}
         {:else if sayVehicle(current)}
           <span class="muted">On {sayVehicle(current)}. Type the next part, or a different vehicle.</span>
         {:else}
-          <span class="muted">Say it the way they do: “front struts for 2000 tacoma”. Enter adds the line.</span>
+          <span class="muted">Say it the way they do: “front struts for 2000 tacoma”, a VIN, or “1qt d3 valspar single stage”. Enter adds the line.</span>
         {/if}
       </p>
       {#if reading && reading.tokens.length}
@@ -118,10 +150,10 @@
 
   {#each groups as g}
     <div class="qe-group">
-      <h3>{g.car || 'No vehicle yet'}</h3>
+      <h3>{g.car || 'No vehicle yet'}{#if g.vin} <small class="qe-vin">VIN {g.vin}{g.decoded ? '' : ' (not decoded)'}</small>{/if}</h3>
       <ul class="plain">
         {#each g.items as l (l.id)}
-          <li class:done={l.done}>
+          <li class={`qe-${l.status}`} class:done={l.done}>
             {#if editing?.id === l.id}
               <form onsubmit={saveEdit} class="qe-edit">
                 <input bind:value={editing.text} aria-label="Change this line" maxlength="200" onkeydown={(e) => e.key === 'Escape' && (editing = null)} />
@@ -129,10 +161,35 @@
                 <button class="btn" type="button" onclick={() => (editing = null)}>Cancel</button>
               </form>
             {:else}
-              <label class="qe-check"><input type="checkbox" checked={l.done} disabled={closed || busy} onchange={() => toggle(l)} /><span>{say(l)}{#if l.guessed.length} <small>(guess)</small>{/if}</span></label>
+              <div class="qe-what">
+                <span class="qe-name">{say(l)}{#if l.guessed.length} <small>(guess)</small>{/if}</span>
+                {#if !closed}
+                  <span class="qe-acts"><button class="btn" type="button" onclick={() => (editing = { id: l.id, text: l.raw })}>Change</button>
+                  <button class="btn" type="button" onclick={() => remove(l)} disabled={busy} aria-label={`Remove ${say(l)}`}>Remove</button></span>
+                {/if}
+              </div>
+              {#if l.paint}
+                <dl class="qe-paint">
+                  <div><dt>Code</dt><dd>{l.paint.code || '—'}</dd></div>
+                  <div><dt>Type</dt><dd>{l.paint.type || '—'}</dd></div>
+                  <div><dt>Brand</dt><dd>{l.paint.brand || '—'}</dd></div>
+                  <div><dt>Amount</dt><dd>{amount(l.paint)}</dd></div>
+                </dl>
+              {:else if l.kind === 'part' && l.suggest === 'ready'}
+                <ul class="plain qe-suggest">
+                  {#each l.suggestions as s (s.id)}
+                    <li><strong>{s.partNumber}</strong> {s.brand}{#if s.description} · {s.description}{/if}{#if s.source === 'ai' && !s.worked} <small>(AI, not checked)</small>{/if}</li>
+                  {/each}
+                </ul>
+              {:else if l.kind === 'part' && SUGGEST[l.suggest]}
+                <p class="qe-suggest-state" class:qe-wait={l.suggest === 'queued' || l.suggest === 'working'}>{SUGGEST[l.suggest]}</p>
+              {/if}
               {#if !closed}
-                <span class="qe-acts"><button class="btn" type="button" onclick={() => (editing = { id: l.id, text: l.raw })}>Change</button>
-                <button class="btn" type="button" onclick={() => remove(l)} disabled={busy} aria-label={`Remove ${say(l)}`}>Remove</button></span>
+                <div class="qe-status" role="group" aria-label={`Where ${say(l)} stands`}>
+                  {#each STATUS as [value, words]}
+                    <button type="button" class:on={l.status === value} aria-pressed={l.status === value} disabled={busy} onclick={() => setStatus(l, value)}>{words}</button>
+                  {/each}
+                </div>
               {/if}
             {/if}
           </li>
@@ -158,16 +215,33 @@
   .qe-tokens span { padding: .05rem .45rem; border-radius: 6px; border: 1px solid var(--cs-border, #ccd); }
   .qe-tokens .t-part { background: #e6f0ff; } .qe-tokens .t-position { background: #e6f0ff; }
   .qe-tokens .t-year, .qe-tokens .t-make, .qe-tokens .t-model, .qe-tokens .t-engine, .qe-tokens .t-drive { background: #e9f7e9; }
-  .qe-tokens .t-qty, .qe-tokens .t-number { background: #fff1c9; }
+  .qe-tokens .t-qty, .qe-tokens .t-number, .qe-tokens .t-amount { background: #fff1c9; }
+  .qe-tokens .t-vin, .qe-tokens .t-paint, .qe-tokens .t-code { background: #f1e6ff; }
   .qe-tokens .t-skip { opacity: .55; }
   .qe-problem { color: var(--cs-bad, #a40000); font-weight: 600; margin: 0; }
   .qe-group h3 { margin: 0 0 .3rem; font-size: 1rem; }
   .qe-group ul { display: grid; gap: .3rem; margin: 0; padding: 0; list-style: none; }
-  .qe-group li { display: flex; flex-wrap: wrap; gap: .25rem .5rem; align-items: center; justify-content: space-between; padding: .35rem .6rem; border: 1px solid var(--cs-border, #ccd); border-radius: 8px; }
-  .qe-group li.done span { text-decoration: line-through; opacity: .6; }
-  .qe-check { display: flex; gap: .6rem; align-items: center; min-height: 44px; flex: 1 1 8rem; min-width: 0; cursor: pointer; }
-  .qe-check input { width: 22px; height: 22px; }
+  .qe-group > ul > li { display: grid; gap: .45rem; padding: .5rem .7rem; border: 1px solid var(--cs-border, #ccd); border-left-width: 4px; border-radius: 8px; }
+  .qe-group > ul > li.qe-found { border-left-color: #2e8540; }
+  .qe-group > ul > li.qe-order { border-left-color: #c77700; }
+  .qe-group > ul > li.qe-cant { border-left-color: #a40000; }
+  .qe-group li.qe-found .qe-name, .qe-group li.qe-cant .qe-name { opacity: .7; }
+  .qe-vin { font-weight: 500; opacity: .75; font-size: .85rem; }
+  .qe-what { display: flex; flex-wrap: wrap; gap: .25rem .5rem; align-items: center; justify-content: space-between; }
+  .qe-name { font-weight: 600; min-height: 44px; display: flex; align-items: center; }
   .qe-acts { display: flex; gap: .3rem; margin-left: auto; }
+  .qe-paint { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .4rem; margin: 0; }
+  .qe-paint div { padding: .3rem .5rem; border-radius: 6px; background: var(--cs-btn, #eef); }
+  .qe-paint dt { font-size: .75rem; opacity: .75; } .qe-paint dd { margin: 0; font-weight: 650; }
+  .qe-suggest { display: grid; gap: .15rem; margin: 0; padding: 0; list-style: none; font-size: .95rem; }
+  .qe-suggest-state { margin: 0; font-size: .9rem; opacity: .8; }
+  .qe-wait::before { content: ''; display: inline-block; width: .7rem; height: .7rem; margin-right: .4rem; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: qe-spin 1s linear infinite; vertical-align: -1px; }
+  @keyframes qe-spin { to { transform: rotate(1turn); } }
+  @media (prefers-reduced-motion: reduce) { .qe-wait::before { animation: none; } }
+  .qe-status { display: flex; flex-wrap: wrap; gap: .3rem; }
+  .qe-status button { min-height: 40px; padding: .3rem .75rem; border-radius: 999px; border: 1px solid var(--cs-border, #ccd); background: transparent; color: inherit; font: inherit; font-size: .9rem; cursor: pointer; }
+  .qe .qe-status button.on, .qe .qe-status button[aria-pressed='true'] { background: var(--cs-primary, #1f5fd8); color: var(--cs-primary-fg, #fff); border-color: transparent; font-weight: 650; }
+  @media (max-width: 640px) { .qe-paint { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   .qe-edit { display: flex; gap: .4rem; flex: 1; flex-wrap: wrap; }
   .qe-edit input { flex: 1; min-width: 10rem; min-height: 44px; padding: .3rem .6rem; border-radius: 8px; border: 2px solid var(--cs-border, #ccd); background: transparent; color: inherit; font: inherit; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

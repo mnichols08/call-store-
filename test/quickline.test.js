@@ -186,3 +186,81 @@ test('nothing breaks on odd input, and the same text always gives the same answe
   assert.equal(read('rear').part, 'Rear', 'a place with no part: still one, flagged incomplete');
   assert.equal(read('rear').partIncomplete, true);
 });
+
+test('a VIN on its own sets the vehicle by its VIN, and is never taken for a part number', () => {
+  let p = read('1FTFW1ET5DFC10312');
+  assert.equal(p.vin, '1FTFW1ET5DFC10312');
+  assert.equal(p.kind, 'vehicle');
+  assert.deepEqual(p.partNumbers, []);
+
+  p = read('vin 1ftfw1et5dfc10312 front brakes');
+  assert.equal(p.vin, '1FTFW1ET5DFC10312', 'upper-cased');
+  assert.equal(p.part, 'Front brakes');
+  assert.equal(p.kind, 'both');
+
+  // I, O and Q never appear in a VIN, so 17 characters with one of them is something else.
+  assert.equal(read('1FTFW1ET5DFC1O312').vin, undefined);
+  assert.equal(read('AW4066 alternator').vin, undefined);
+});
+
+test('paint lines, in any order: code, type, brand and amount', () => {
+  let p = read('1qt d3 valspar single stage');
+  assert.equal(p.kind, 'paint');
+  assert.deepEqual(p.paint, { code: 'D3', type: 'Single stage', brand: 'Valspar', amount: 1, unit: 'qt' });
+  assert.equal(p.part, 'Paint');
+
+  p = read('paint');
+  assert.equal(p.kind, 'paint');
+  assert.deepEqual(p.paint, { code: '', type: '', brand: '', amount: null, unit: '' });
+
+  p = read('paint WA8555');
+  assert.deepEqual(p.paint, { code: 'WA8555', type: '', brand: '', amount: null, unit: '' });
+  assert.deepEqual(p.partNumbers, [], 'a paint code is not a part number');
+
+  p = read('paint wa8555 1 gallon');
+  assert.equal(p.paint.code, 'WA8555');
+  assert.equal(p.paint.amount, 1);
+  assert.equal(p.paint.unit, 'gal');
+
+  p = read('nason basecoat clearcoat 040 2 qts');
+  assert.deepEqual(p.paint, { code: '040', type: 'Basecoat/clearcoat', brand: 'Nason', amount: 2, unit: 'qt' });
+
+  p = read('touch up paint pw7 8 oz');
+  assert.deepEqual(p.paint, { code: 'PW7', type: 'Touch-up', brand: '', amount: 8, unit: 'oz' });
+
+  p = read('2 spray cans of paint ua');
+  assert.equal(p.paint.type, 'Spray can');
+  assert.equal(p.paint.code, 'UA');
+  assert.equal(p.qty, 2, 'two cans');
+
+  p = read('bc/cc valspar 1f7 half gallon');
+  assert.equal(p.paint.type, 'Basecoat/clearcoat');
+  assert.equal(p.paint.code, '1F7');
+  assert.equal(p.paint.amount, 0.5);
+  assert.equal(p.paint.unit, 'gal');
+});
+
+test('a paint line keeps the vehicle, and plain parts in quarts are not paint', () => {
+  const p = read('paint for 2010 silverado WA8555 1qt');
+  assert.equal(p.kind, 'paint');
+  assert.equal(p.paint.code, 'WA8555');
+  assert.equal(p.vehicle.year, '2010');
+  assert.equal(p.vehicle.model, 'Silverado');
+
+  const oil = read('5 qt motor oil');
+  assert.equal(oil.kind, 'part');
+  assert.equal(oil.paint, undefined);
+  assert.equal(read('brake clean spray').paint, undefined);
+});
+
+test('the read-back of a paint line', () => {
+  const p = read('1qt d3 valspar single stage');
+  assert.equal(sayLine(p, {}), 'Paint D3 · Valspar single stage · 1 qt');
+  assert.equal(sayLine(read('paint'), {}), 'Paint (code?)');
+});
+
+test('a VIN starts its own vehicle: lines after it are not for the vehicle before it', () => {
+  let vehicle = carryVehicle({}, read('2012 civic'));
+  vehicle = carryVehicle(vehicle, read('1HGCV1F30JA012345'));
+  assert.deepEqual(vehicle, {});
+});

@@ -1,6 +1,6 @@
 // The call pages: the shared queue and the workspace where a call is taken and worked.
 import { esc, ago, when, money } from '../html.js';
-import { badge, button, callBadges, empty, field, matchList, say, select } from '../ui.js';
+import { badge, button, callBadges, empty, field, say, select } from '../ui.js';
 import { OUTCOMES, PRIORITIES, STATUS_LABEL, canMove } from '../../domain/call.js';
 import { can } from '../../domain/permissions.js';
 import { formatPhone } from '../../domain/phone.js';
@@ -9,8 +9,7 @@ import { tierBadge } from './customers.js';
 import { deliveryPanel } from './delivery.js';
 import { callPortalPanel } from './portal.js';
 import { suggestionsPanel } from './watch.js';
-import { matchData, partsPanel, vehiclePanels } from './vehicles.js';
-import { bounded } from '../stream.js';
+import { partsPanel, vehiclePanels } from './vehicles.js';
 import { quickEntry } from './quick.js';
 
 const VIEWS = [
@@ -49,7 +48,9 @@ const EVENT_WORDS = {
   'item-removed': () => 'Item removed',
 };
 
-const LINE_PROBLEMS = { empty: 'Type a part, a vehicle, or both.', 'too-many': 'That’s the most lines one call can hold. Start a second call.', closed: 'This call is closed.' };
+const LINE_PROBLEMS = { empty: 'Type a part, a vehicle, or both.', 'too-many': 'That’s the most lines one call can hold. Start a second call.', closed: 'This call is closed.', status: 'Pick found, need to order, can’t get or open.' };
+// What a VIN that couldn't be decoded says. The line stays as typed either way.
+const VIN_PROBLEMS = { 'vin-length': 'A VIN is 17 characters. Check it and retype the line.', 'vin-characters': 'That VIN has a letter VINs never use (I, O or Q). Check it.', 'vin-unknown': 'The VIN decoder doesn’t know that VIN. Check it, or type the year and model.', source: 'The VIN decoder is down right now. Type the year and model, or try again later.' };
 
 export function callRoutes(router) {
   // ---------------------------------------------------------------- the queue
@@ -93,7 +94,7 @@ ${result.calls.length
   router.get('/calls/:id', async (ctx) => {
     const got = ctx.app.calls.get(ctx.who, Number(ctx.params.id));
     if (got.error) return ctx.notFound();
-    return ctx.stream(`Call #${got.call.id}`, await workspace(ctx, got), { active: 'calls', live: true, script: '<script src="/assets/call.js" defer></script><script src="/assets/vehicle.js" defer></script>' });
+    return ctx.stream(`Call #${got.call.id}`, await workspace(ctx, got), { active: 'calls', live: true, script: '<script src="/assets/call.js" defer></script>' });
   });
 
   // The ticket on paper: everything about the call on one sheet.
@@ -117,7 +118,7 @@ ${result.calls.length
   });
 
   // Lines: one typed line per part. JSON for the page's entry box; a plain form post still works without JavaScript.
-  router.post('/calls/:id/lines', (ctx) => {
+  router.post('/calls/:id/lines', async (ctx) => {
     const id = Number(ctx.params.id);
     const f = ctx.form;
     const lines = ctx.app.lines;
@@ -126,11 +127,28 @@ ${result.calls.length
     switch (f.get('action') || 'add') {
       case 'edit': result = lines.edit(ctx.who, id, line, f.get('text') ?? ''); break;
       case 'done': result = lines.done(ctx.who, id, line, f.get('done') === '1'); break;
+      case 'status': result = lines.status(ctx.who, id, line, f.get('status') ?? ''); break;
       case 'remove': result = lines.remove(ctx.who, id, line); break;
       default: result = lines.add(ctx.who, id, f.get('text') ?? '');
     }
-    if (ctx.wantsJson) return ctx.json(result, result.error === 'forbidden' ? 403 : result.error === 'missing' ? 404 : result.error ? 409 : 200);
-    return ctx.redirect(`/calls/${id}#quick`, result.error ? { problem: LINE_PROBLEMS[result.error] ?? say(result.error) } : {});
+    // A VIN on the line: decode it now, so the answer carries the vehicle. If the decoder is slow or
+    // can't read it, the line stays as typed and the page says why.
+    let vinProblem = '';
+    if (result.ok && result.vin) {
+      let timer;
+      const slow = new Promise((done) => { timer = setTimeout(() => done({ error: 'source', slow: true }), ctx.config.lookupTimeoutMs ?? 10_000); });
+      const decoded = await Promise.race([lines.resolveVin(ctx.who, id, result.vin), slow]).finally(() => clearTimeout(timer));
+      if (decoded.ok) result = { ...result, ...decoded, vin: null };
+      else vinProblem = VIN_PROBLEMS[decoded.error] ?? VIN_PROBLEMS.source;
+    }
+    if (ctx.wantsJson) return ctx.json({ ...result, vinProblem }, result.error === 'forbidden' ? 403 : result.error === 'missing' ? 404 : result.error ? 409 : 200);
+    return ctx.redirect(`/calls/${id}#quick`, result.error ? { problem: LINE_PROBLEMS[result.error] ?? say(result.error) } : vinProblem ? { problem: vinProblem } : {});
+  });
+
+  // The lines as they stand, for the entry box to redraw when the suggestion queue answers.
+  router.get('/calls/:id/lines', (ctx) => {
+    const result = ctx.app.lines.list(ctx.who, Number(ctx.params.id));
+    return ctx.json(result, result.error === 'forbidden' ? 403 : result.error ? 404 : 200);
   });
 
   // One endpoint for the buttons: each is a form with an `action` value.
@@ -214,10 +232,9 @@ async function workspace(ctx, got) {
       ${can(who, 'call.assign') && !finished ? `<form method="post" action="/calls/${call.id}/action" class="row"><input type="hidden" name="action" value="assign"><label class="sr" for="assign-to">Assign to</label><select id="assign-to" name="to"><option value="">Nobody</option>${people.list().map((p) => `<option value="${esc(p.email)}"${p.email === call.assignee ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>${button(page, 'Assign', { variant: 'outline', size: 'sm' })}</form>` : ''}`;
 
   const vp = vehiclePanels(ctx, got, closed);
-  const matches = vp.deferMatch ? matchList(page, { callId: call.id, result: bounded(() => matchData(ctx, vp.deferMatch.vq, vp.deferMatch.vy), { ms: ctx.config.lookupTimeoutMs ?? 10_000, message: 'The vehicle lookup is slow right now. Pick by hand, or search again.', onError: (e) => ctx.log?.warn('match failed', { message: e.message }) }) }) : '';
-  const vehiclePanel = vp.lookupHtml || vp.savedHtml ? `<section class="panel stack" id="vehicle"><h2>Vehicle lookup</h2>
-    ${vp.vehicle ? `<p>On this call: <strong>${esc(vp.vehicle)}</strong></p>` : '<p class="muted">Read the VIN, find it by year and model, or pick it by hand. The fields below fill in.</p>'}
-    ${vp.lookupHtml}${matches}${vp.savedHtml}</section>` : '';
+  // The vehicle comes from "What do they need?" (a VIN typed there is decoded). Only the customer's
+  // vehicles on file stay here, so one can be picked without retyping it.
+  const vehiclePanel = vp.savedHtml ? `<section class="panel stack" id="vehicle"><h2>Vehicles on file</h2>${vp.savedHtml}</section>` : '';
   const partsHtml = suggestionsPanel(ctx, got, closed) + detailsPanel(ctx, got, closed) + partsPanel(ctx, got, closed);
 
   const itemTerm = url.searchParams.get('item') ?? '';

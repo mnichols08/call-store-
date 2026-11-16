@@ -11,6 +11,7 @@ import { createParts } from './parts.js';
 import { createWatch } from './watch.js';
 import { createDetails } from './details.js';
 import { createLines } from './lines.js';
+import { createFinder } from './finder.js';
 import { createPortal } from './portal.js';
 import { createHours } from './hours.js';
 import { createOrders } from './orders.js';
@@ -32,7 +33,10 @@ export function createApp({ db, now = Date.now, changed = () => {}, fetcher = gl
   const nudges = createNudges(shared);
   const parts = createParts({ ...shared, ai, limits, log });
   const calls = createCalls(shared);
-  const lines = createLines(shared);
+  const vehicles = createVehicles({ ...shared, sources, log });
+  // Part lines are asked about in the background, one at a time (app/finder.js).
+  const finder = createFinder({ ...shared, parts, log });
+  const lines = createLines({ ...shared, vehicles, queue: () => void finder.kick() });
   const details = createDetails({ ...shared, nudges, ai, log });
   const mailer = mailOptions.send ? mailOptions : createMailer({ db, now, fetcher, log, ...mailOptions });
   const texter = smsOptions.send ? smsOptions : createTexter({ db, now, fetcher, log, ...smsOptions });
@@ -41,5 +45,5 @@ export function createApp({ db, now = Date.now, changed = () => {}, fetcher = gl
   const hours = createHours({ ...shared, zone });
   const orders = createOrders({ ...shared, ai, customers, log });
   const delivery = createDelivery({ ...shared, portal });
-  return { audit, lines, details, portal, mailer, texter, hours, orders, delivery, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles: createVehicles({ ...shared, sources, log }), parts, customers, items: createItems(shared), calls, nudges, stats: createStats(shared) };
+  return { audit, lines, finder, details, portal, mailer, texter, hours, orders, delivery, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles, parts, customers, items: createItems(shared), calls, nudges, stats: createStats(shared) };
 }
