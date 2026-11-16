@@ -117,6 +117,15 @@ test('a customer on file is delivered to the address the shop knows; a cash cust
   assert.equal(app.delivery.get(ann, call).delivery.address, '9 Farm Ln, Oakland');
   assert.equal(app.delivery.list(ann).active[0].customer_address, '9 Farm Ln, Oakland');
 
+  // Account 0 is the cash customer: found by typing 0, and always asked where it's going.
+  const zero = app.customers.create(ann, { name: 'Cash Customer', account_no: '0', address: 'Counter' }).id;
+  assert.equal(app.customers.search(ann, '0').customers[0].id, zero);
+  assert.equal(app.customers.search(ann, '0').customers[0].exact, true);
+  const cashCall = app.calls.create(ann, { caller_name: 'Walk-in', request: 'Battery' }, { customerId: zero }).id;
+  assert.equal(app.delivery.knownFor(cashCall), false);
+  assert.equal(app.delivery.set(ann, cashCall, { town: 'Oakland, MD' }).error, 'address');
+  assert.equal(app.delivery.set(ann, cashCall, { town: 'Oakland, MD', address: '3 Elm St' }).ok, true);
+
   // Only an owner can turn it off; then everyone is asked.
   assert.equal(app.delivery.setKnown(manager, false).error, 'forbidden');
   assert.equal(app.delivery.setKnown(owner, false).ok, true);

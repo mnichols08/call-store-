@@ -26,7 +26,7 @@ export function deliveryPanel(ctx, got, closed) {
   const editable = can(who, 'call.edit') && !closed && d?.status !== 'delivered';
   const known = app.delivery.knownFor(call.id);
   const onFile = typeof known === 'string' ? known : '';
-  const hint = known ? (onFile ? 'From their account. Change it only if this one goes somewhere else.' : 'They’re on file, so you can leave this empty.') : 'No customer on this call, so we need an address.';
+  const hint = known ? (onFile ? 'From their account. Change it only if this one goes somewhere else.' : 'They’re on file, so you can leave this empty.') : 'A cash customer, so we need an address.';
   const form = (label) => `<form method="post" action="/calls/${call.id}/delivery" class="stack"><label>Town ${townSelect('town', d?.town ?? '')}</label>
     <label>Address <span class="hint">${hint}</span><textarea name="address" rows="2" maxlength="200"${known ? '' : ' required'}>${esc(d?.address || onFile)}</textarea></label>
     <label>Notes (where to leave it, who to ask for)<input name="note" maxlength="200" value="${esc(d?.note ?? '')}"></label><button class="btn primary">${label}</button></form>`;
@@ -46,7 +46,7 @@ const stop = (d, ctx) => `<tr><td class="num"><a href="/calls/${d.call_id}">#${d
   <td>${badge(ctx.page, VARIANT[d.status], STATUS_LABEL[d.status])}</td></tr>`;
 
 const knownSetting = (on) => `<section class="panel stack"><h2>Addresses</h2>
-  <p>${on ? 'A customer on file is delivered to the address the shop already has, so nobody has to type it. A cash customer is always asked for one.' : 'Every delivery asks for an address, even for customers on file.'}</p>
+  <p>${on ? 'A customer on file is delivered to the address the shop already has, so nobody has to type it. The cash customer (account 0, or no customer on the call) is always asked for one.' : 'Every delivery asks for an address, even for customers on file.'}</p>
   <form method="post" action="/deliveries/known"><input type="hidden" name="on" value="${on ? '0' : '1'}"><button class="btn">${on ? 'Ask for an address every time' : 'Use the address on file for customers'}</button></form></section>`;
 
 export function deliveryRoutes(router) {

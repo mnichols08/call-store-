@@ -19,11 +19,13 @@ export function createDelivery({ db, audit, now, changed, portal }) {
   const row = (id) => db.prepare('SELECT * FROM call_delivery WHERE call_id = ?').get(id) ?? null;
   // On unless an owner turns it off: a customer on file is delivered to the address the shop knows.
   const knownOn = () => db.prepare("SELECT value FROM settings WHERE key = 'delivery.known'").get()?.value !== 'off';
-  /** For a call with a customer attached: their address on file, or `true` when none is written down. False for a cash customer. */
+  /** For a call with a customer attached: their address on file, or `true` when none is written down. False for a cash customer: no customer on the call, or account 0. */
   const knownFor = (callId) => {
     if (!knownOn()) return false;
-    const c = db.prepare('SELECT cu.address FROM calls c JOIN customers cu ON cu.id = c.customer_id WHERE c.id = ?').get(callId);
-    return c ? c.address.trim() || true : false;
+    const c = db.prepare('SELECT cu.address, cu.account_no FROM calls c JOIN customers cu ON cu.id = c.customer_id WHERE c.id = ?').get(callId);
+    // Account 0 is the shop's cash customer: anybody at all, so there is no address to know.
+    if (!c || /^0+$/.test(String(c.account_no ?? '').trim())) return false;
+    return c.address.trim() || true;
   };
 
   return {
