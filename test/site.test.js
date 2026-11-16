@@ -36,8 +36,22 @@ test('the home page is the shop’s own page for anyone signed out', async (t) =
   assert.match(text, /Hydraulic hose/);
   assert.doesNotMatch(text, /Call desk/, 'the internal app name stays off the public page');
   assert.doesNotMatch(text, /Nu Finish|Patriot Motors/, 'other businesses are only named once the owner agrees');
-  assert.match(html, /<title>Southern Auto Supply<\/title>/);
-  assert.match(html, /name="description"/);
+  assert.match(html, /<title>Southern Auto Supply \| NAPA Auto Parts in Mt\. Lake Park, MD<\/title>/);
+  assert.match(html, /name="description" content="[^"]{80,160}"/, 'a description of search-result length');
+  assert.match(html, /name="robots" content="index, follow/);
+  assert.match(html, /<link rel="canonical" href="http[^"]+\/">/);
+  assert.match(html, /property="og:image" content="http[^"]+\/assets\/og-image\.jpg"/);
+  assert.match(html, /name="twitter:card" content="summary_large_image"/);
+  assert.match(html, /rel="manifest" href="\/manifest\.webmanifest"/);
+  const ld = JSON.parse(/<script type="application\/ld\+json">([^]*?)<\/script>/.exec(html)[1]);
+  assert.equal(ld['@type'], 'AutoPartsStore');
+  assert.ok(ld.makesOffer.length >= 8 && ld.areaServed.length >= 2 && ld.image.length === 1);
+  for (const path of ['/assets/og-image.jpg', '/assets/logo.webp', '/assets/icon-512.png', '/favicon.ico']) {
+    const asset = await fetch(`${base}${path}`, { redirect: 'manual' });
+    assert.ok([200, 301].includes(asset.status), path);
+  }
+  const manifest = await (await fetch(`${base}/manifest.webmanifest`)).json();
+  assert.equal(manifest.name, 'Southern Auto Supply');
   const csp = res.headers.get('content-security-policy');
   assert.doesNotMatch(csp, /wasm-unsafe-eval/);
 });

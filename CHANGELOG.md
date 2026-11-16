@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased: brand and search
+- The shop's own logo replaces the placeholder badge on the public page and the customer portal (`public/logo.webp`), with favicon, home-screen icons and a web app manifest.
+- Sharing the page now shows a 1200×630 preview image (`public/og-image.jpg`); Open Graph and Twitter card tags added.
+- Search: a keyword title ("Southern Auto Supply | NAPA Auto Parts in Mt. Lake Park, MD"), a description of result length, canonical address, richer structured data (service area, brand, what we sell, image and logo), sitemap with a last-modified date. Staff and portal pages are marked noindex.
+
 ## Unreleased: manager pages polish
 - Activity shows plain words ("Call taken", "Hours changed") instead of event codes; the code is still in the tooltip.
 - Hours: form labels sit above their fields, Save is a proper blue button, and the week table fills the card on phones.

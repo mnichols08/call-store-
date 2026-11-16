@@ -73,9 +73,9 @@ const initials = (who) => esc(String(who.name || who.email).split(/[\s@.]+/).fil
  * `live` makes the page reload when a coworker changes what it shows.
  */
 /** The shop's badge and name, as the header of the public page and the customer pages show it. */
-export const logoHtml = (name, href = '/') => `<a class="logo" href="${esc(href)}" aria-label="${esc(name)}, home"><svg class="mark" viewBox="0 0 48 52" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd84a"/><stop offset="1" stop-color="#ffb300"/></linearGradient><clipPath id="lc"><path d="M24 2l19 6v17c0 13-8 22-19 25C13 47 5 38 5 25V8z"/></clipPath></defs><path d="M24 2l19 6v17c0 13-8 22-19 25C13 47 5 38 5 25V8z" fill="url(#lg)"/><g clip-path="url(#lc)"><path d="M0 38l48-10v7L0 45z" fill="#0b3a8c"/></g><path d="M24 2l19 6v17c0 13-8 22-19 25C13 47 5 38 5 25V8z" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/><text x="24" y="33" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-style="italic" font-size="32" fill="#0a1633" stroke="#fff" stroke-width=".8" paint-order="stroke">S</text></svg><span class="word"><b>Southern</b><i>Auto Supply</i></span></a>`;
+export const logoHtml = (name, href = '/') => `<a class="logo" href="${esc(href)}" aria-label="${esc(name)}, home"><img class="logo-img" src="/assets/logo.webp" width="115" height="53" alt="${esc(name)}"></a>`;
 
-export function layout({ title, who, active = '', body, notice = {}, business, live = false, script = '', navHtml = null, accountHtml = null, home = '/', head = '', sub = 'Call desk', bodyClass = '', bare = false, customer = false }) {
+export function layout({ title, who, active = '', body, notice = {}, business, live = false, script = '', navHtml = null, accountHtml = null, home = '/', head = '', sub = 'Call desk', bodyClass = '', bare = false, customer = false, index = false, fullTitle = '' }) {
   const shell = Boolean(who) && navHtml === null && accountHtml === null;
   const toggle = '<button type="button" class="icon-btn theme-toggle" aria-label="Switch theme">🌙</button>';
   const nav = shell ? '' : (navHtml ?? '');
@@ -87,8 +87,11 @@ export function layout({ title, who, active = '', body, notice = {}, business, l
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#0b132b">
-<title>${title === business ? esc(title) : `${esc(title)} · ${esc(business)}`}</title>
-<link rel="icon" href="data:,">
+<title>${fullTitle ? esc(fullTitle) : title === business ? esc(title) : `${esc(title)} · ${esc(business)}`}</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/icon-32.png">
+<link rel="apple-touch-icon" href="/assets/icon-180.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="robots" content="${index ? 'index, follow, max-image-preview:large' : 'noindex, nofollow'}">
 ${head}
 ${bare ? '<link rel="stylesheet" href="/assets/site.css">' : customer ? '<link rel="stylesheet" href="/assets/zubra-ui-theme.css">\n<link rel="stylesheet" href="/assets/app.css"><link rel="stylesheet" href="/assets/customer.css">' : '<link rel="stylesheet" href="/assets/zubra-ui-theme.css">\n<link rel="stylesheet" href="/assets/app.css"><link rel="stylesheet" href="/assets/system.css">'}
 <script src="/assets/theme.js"></script>
@@ -190,7 +193,10 @@ export function printLayout({ title, body, business, back }) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} · ${esc(business)}</title>
-<link rel="icon" href="data:,">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/icon-32.png">
+<link rel="apple-touch-icon" href="/assets/icon-180.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="robots" content="noindex, nofollow">
 <link rel="stylesheet" href="/assets/print.css">
 </head>
 <body>
