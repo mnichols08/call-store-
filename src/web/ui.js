@@ -15,7 +15,6 @@ const clean = (value) => (typeof value === 'string' ? value.toWellFormed() : Arr
 export const field = (page, props) => page.render('text-field', clean(props));
 export const select = (page, props) => page.render('select-field', clean(props));
 /** The vehicle matches; `result` is a promise, so the page doesn't wait for it. */
-export const matchList = (page, { callId, result }) => page.render('match-list', { callId: String(callId), result });
 /** The part finder's answers; `data` is an object, or a promise of one (the AI is still looking). */
 export const answerList = (page, { callId, closed, data }) => page.render('answer-list', { callId: String(callId), closed: Boolean(closed), data: typeof data?.then === 'function' ? data.then(clean) : clean(data) });
 export const stat = (page, props) => page.render('stat-card', clean(props));

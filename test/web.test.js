@@ -347,6 +347,27 @@ test('quick entry: lines are added over JSON and by plain form post, the page ke
   assert.equal(done.json().lines[0].done, true);
 });
 
+test('quick entry: statuses by plain form, paint cards, and the lines as JSON for the page to redraw', async () => {
+  const olive = await signedIn();
+  const path = (await olive('/calls', { method: 'POST', form: {} })).location;
+  await olive(`${path}/lines`, { method: 'POST', form: { text: '2012 civic front brake pads' } });
+  await olive(`${path}/lines`, { method: 'POST', form: { text: '1qt d3 valspar single stage' } });
+  const listed = await olive(`${path}/lines`, { json: true });
+  assert.equal(listed.status, 200);
+  const [pads, paint] = listed.json().lines;
+  assert.equal(paint.kind, 'paint');
+
+  const set = await olive(`${path}/lines`, { method: 'POST', form: { action: 'status', line: String(pads.id), status: 'order' } });
+  assert.equal(set.status, 303);
+  const page = (await olive(path)).text;
+  assert.match(page, /Need to order<\/small>/, 'the line says where it stands');
+  assert.match(page, /name="status" value="order" aria-pressed="true"/);
+  assert.match(page, /<dt>Code<\/dt><dd>D3<\/dd>/);
+  assert.match(page, /<dt>Amount<\/dt><dd>1 qt<\/dd>/);
+  assert.equal((await olive(`${path}/lines`, { method: 'POST', json: true, form: { action: 'status', line: String(pads.id), status: 'lost' } })).status, 409);
+  assert.equal((await olive(`${path.replace(/\d+$/, '99999')}/lines`, { json: true })).status, 404);
+});
+
 test('reports: the page carries its data for the island, and /reports.json answers staff with permission only', async () => {
   const olive = await signedIn();
   const page = (await olive('/reports?days=7')).text;
