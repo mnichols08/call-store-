@@ -72,7 +72,7 @@ const initials = (who) => esc(String(who.name || who.email).split(/[\s@.]+/).fil
  * A whole page. `notice` is the signed one-line message from the last form (problem / done), and
  * `live` makes the page reload when a coworker changes what it shows.
  */
-export function layout({ title, who, active = '', body, notice = {}, business, live = false, script = '', navHtml = null, accountHtml = null, home = '/', head = '', sub = 'Call desk', bodyClass = '' }) {
+export function layout({ title, who, active = '', body, notice = {}, business, live = false, script = '', navHtml = null, accountHtml = null, home = '/', head = '', sub = 'Call desk', bodyClass = '', bare = false }) {
   const shell = Boolean(who) && navHtml === null && accountHtml === null;
   const toggle = '<button type="button" class="icon-btn theme-toggle" aria-label="Switch theme">🌙</button>';
   const nav = shell ? '' : (navHtml ?? '');
@@ -87,12 +87,11 @@ export function layout({ title, who, active = '', body, notice = {}, business, l
 <title>${title === business ? esc(title) : `${esc(title)} · ${esc(business)}`}</title>
 <link rel="icon" href="data:,">
 ${head}
-<link rel="stylesheet" href="/assets/zubra-ui-theme.css">
-<link rel="stylesheet" href="/assets/app.css"><link rel="stylesheet" href="/assets/system.css">
+${bare ? '<link rel="stylesheet" href="/assets/site.css">' : '<link rel="stylesheet" href="/assets/zubra-ui-theme.css">\n<link rel="stylesheet" href="/assets/app.css"><link rel="stylesheet" href="/assets/system.css">'}
 <script src="/assets/theme.js"></script>
 </head>
 <body${live ? ' data-live' : ''} class="${shell ? 'app ' : ''}${esc(bodyClass)}">
-${shell ? '' : '<div id="bg-layer" aria-hidden="true"></div>'}
+${shell || bare ? '' : '<div id="bg-layer" aria-hidden="true"></div>'}
 <a class="skip" href="#main">Skip to content</a>
 ${shell ? `<div class="shell">
 <aside class="side" id="side" aria-label="Main">
@@ -104,14 +103,14 @@ ${shell ? `<div class="shell">
 </aside>
 <div class="scrim" data-shell-close></div>
 <div class="main-col"><header class="topbar"><button type="button" class="icon-btn menu-btn" aria-controls="side" aria-expanded="false" aria-label="Menu">${icon('M4 6h16M4 12h16M4 18h16')}</button><span class="crumb">${esc(title)}</span></header>
-<main id="main">` : `<header class="bar"><a class="brand" href="${home}">${esc(business)}${sub ? `<small>${esc(sub)}</small>` : ''}</a>${nav}${account}</header>
+<main id="main">` : bare ? `<main id="main">` : `<header class="bar"><a class="brand" href="${home}">${esc(business)}${sub ? `<small>${esc(sub)}</small>` : ''}</a>${nav}${account}</header>
 <main id="main">`}
 ${notice.problem ? `<p class="flash problem" role="alert">${esc(notice.problem)}</p>` : ''}${notice.done ? `<p class="flash done" role="status">${esc(notice.done)}</p>` : ''}
 ${body}
 </main>${shell ? '</div></div>' : ''}
 <div id="toasts" aria-live="polite"></div>
 <span id="net-pill" role="status" hidden><span class="dot"></span>Offline. Changes save when you’re back.</span>
-${shell ? '<script src="/assets/shell.js" defer></script>' : '<script src="/assets/background.js" defer></script>'}<script src="/assets/network.js" defer></script>
+${shell ? '<script src="/assets/shell.js" defer></script>' : bare ? '' : '<script src="/assets/background.js" defer></script>'}<script src="/assets/network.js" defer></script>
 ${who ? '<script src="/assets/shortcuts.js" defer></script><script src="/assets/nudge.js" defer></script>' : ''}<script src="/assets/print.js" defer></script>${live ? '<script src="/assets/live.js" defer></script>' : ''}${script}
 </body>
 </html>`;
