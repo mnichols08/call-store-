@@ -54,7 +54,7 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
       ? { navHtml: nav, accountHtml: `<div class="account"><span class="who"><span>${esc(acct.name)}</span><small>${esc(acct.business)}</small></span><form method="post" action="/portal/sign-out"><button class="link" type="submit">Sign out</button></form><button type="button" class="icon-btn theme-toggle" aria-label="Switch theme">🌙</button></div>`, home: '/portal' }
       : { navHtml: '', accountHtml: '<div class="account"><button type="button" class="icon-btn theme-toggle" aria-label="Switch theme">🌙</button></div>', home: '/portal' };
     res.writeHead(status, headers(res, cookie ? { 'set-cookie': cookie } : {}));
-    res.end(p.finish(layout({ title, who: null, body, business: config.business, script, ...bar })));
+    res.end(p.finish(layout({ title, who: null, body, business: config.business, script, customer: true, ...bar })));
   }
   const go = (res, where, cookie = null) => { res.writeHead(303, { location: where, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', ...(cookie ? { 'set-cookie': cookie } : {}) }); res.end(); };
   const json = (res, status, value) => { res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(value)); };

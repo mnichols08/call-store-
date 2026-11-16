@@ -14,7 +14,7 @@ export function createCustomerPages({ app, config, zubra, now }) {
 
   function page(res, nonce, status, title, body, script = '') {
     const p = zubra.page({ nonce });
-    const html = p.finish(layout({ title, who: null, body, business: config.business, script }));
+    const html = p.finish(layout({ title, who: null, body, business: config.business, script, customer: true }));
     res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'content-security-policy': res.csp, 'referrer-policy': 'no-referrer', 'x-robots-tag': 'noindex, nofollow' });
     res.end(html);
   }
