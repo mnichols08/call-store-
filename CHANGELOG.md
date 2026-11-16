@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased: customer numbers, known addresses, owner recovery
+- Caller lookup: a bare number means that customer. The account with exactly that number comes first, then the record with that id, then everything else. Typing `965` and pressing Enter puts customer 965 on the call.
+- Delivery: a customer on file no longer needs an address typed. The address on their account is filled in (or left as "usual address" when none is written down). A cash customer is still asked. An owner can switch this off on the Deliveries page.
+- `npm run recover-owner` prints a one-time link for an owner who is locked out. Nothing is deleted.
+
 ## Unreleased: invites, passkeys and texts
 - New **Invite** page (staff menu). Someone at a customer: find or add the customer first, then send a one-time link by text, email, or a QR code on your screen. The person picks their name, then a passkey or a username and password; they never choose their customer. The same "Invite a person" form is on each customer's Online account panel.
 - Employees: managers invite counter staff, the owner invites anyone (kit PR #21). The link goes by text, email or QR; the employee picks a password (no passkeys for staff).

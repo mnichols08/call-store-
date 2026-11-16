@@ -3,8 +3,8 @@ import { can } from '../domain/permissions.js';
 import { STATUSES, NEXT, cleanDelivery } from '../domain/delivery.js';
 
 /** Save (or replace) a call's delivery. Used by staff and by a customer's own web request. */
-export function saveDelivery({ db, now }, callId, input, by) {
-  const d = cleanDelivery(input);
+export function saveDelivery({ db, now }, callId, input, by, { known = false } = {}) {
+  const d = cleanDelivery(input, undefined, { known });
   if (d.error) return d;
   const at = now();
   db.prepare(`INSERT INTO call_delivery (call_id, town, address, note, outside, requested_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -17,8 +17,27 @@ export function createDelivery({ db, audit, now, changed, portal }) {
   const deny = (who, permission) => (can(who, permission) ? null : { error: 'forbidden' });
   const call = (id) => db.prepare('SELECT id, status, source FROM calls WHERE id = ?').get(id);
   const row = (id) => db.prepare('SELECT * FROM call_delivery WHERE call_id = ?').get(id) ?? null;
+  // On unless an owner turns it off: a customer on file is delivered to the address the shop knows.
+  const knownOn = () => db.prepare("SELECT value FROM settings WHERE key = 'delivery.known'").get()?.value !== 'off';
+  /** For a call with a customer attached: their address on file, or `true` when none is written down. False for a cash customer. */
+  const knownFor = (callId) => {
+    if (!knownOn()) return false;
+    const c = db.prepare('SELECT cu.address FROM calls c JOIN customers cu ON cu.id = c.customer_id WHERE c.id = ?').get(callId);
+    return c ? c.address.trim() || true : false;
+  };
 
   return {
+    knownOn,
+    knownFor,
+
+    /** Owner only: whether customers on file are delivered without asking for an address. */
+    setKnown(who, on) {
+      if (!who?.roles?.includes('owner')) return { error: 'forbidden' };
+      db.prepare("INSERT INTO settings (key, value) VALUES ('delivery.known', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").run(on ? 'on' : 'off');
+      audit.record(who.email, on ? 'delivery.known-on' : 'delivery.known-off', 'settings', {});
+      return { ok: true };
+    },
+
     get(who, callId) {
       const no = deny(who, 'call.view');
       if (no) return no;
@@ -31,7 +50,7 @@ export function createDelivery({ db, audit, now, changed, portal }) {
       const c = call(callId);
       if (!c) return { error: 'missing' };
       if (row(callId)?.status === 'delivered') return { error: 'delivered' };
-      const r = saveDelivery({ db, now }, callId, input, who.email);
+      const r = saveDelivery({ db, now }, callId, input, who.email, { known: knownFor(callId) });
       if (r.error) return r;
       db.prepare('UPDATE calls SET revision = revision + 1, updated_at = ? WHERE id = ?').run(now(), callId);
       audit.record(who.email, 'delivery.set', `call:${callId}`, { outside: r.outside });
@@ -74,7 +93,7 @@ export function createDelivery({ db, audit, now, changed, portal }) {
     list(who) {
       const no = deny(who, 'call.view');
       if (no) return no;
-      const rows = db.prepare(`SELECT d.*, c.request, c.part_numbers, c.caller_name, c.caller_phone, c.source, cu.name AS customer_name,
+      const rows = db.prepare(`SELECT d.*, c.request, c.part_numbers, c.caller_name, c.caller_phone, c.source, cu.name AS customer_name, cu.address AS customer_address,
           (SELECT phone FROM customer_phones WHERE customer_id = c.customer_id ORDER BY id LIMIT 1) AS customer_phone
         FROM call_delivery d JOIN calls c ON c.id = d.call_id LEFT JOIN customers cu ON cu.id = c.customer_id
         WHERE d.status != 'delivered' OR d.delivered_at > ? ORDER BY d.status = 'delivered', d.outside, d.town COLLATE NOCASE, d.call_id`).all(now() - 86_400_000);

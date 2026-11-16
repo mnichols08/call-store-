@@ -7,7 +7,7 @@ Built for Southern Auto Supply on [Zubra](https://github.com/journey-to-code-org
 ## What it does
 
 - **Calls.** A call can start with nothing. Add the caller, the request, part numbers, the vehicle or equipment, and notes in any order; it saves as you type. Press **N** anywhere to start one.
-- **Caller lookup.** Phone number in any format (or just the last four digits), name, or account number. **No customer is a normal state**, and one can be attached later without starting over.
+- **Caller lookup.** A customer number first: type `965` and press Enter, and customer 965 is on the call. Otherwise a phone number in any format (or just the last four digits), a name, or an account number. **No customer is a normal state**, and one can be attached later without starting over.
 - **Shared queue.** All open, mine, unassigned, needs help, parked, finished. Claiming is one-winner: two people can't take the same call. Park a call and come back to it; ask anyone, or one coworker, for a hand.
 - **Outcomes and history.** A call ends with what came of it (quoted, sold, no sale, unavailable, callback…). Every change is on the call's timeline, attributed to the person who made it.
 - **Customers.** People and businesses, any number of phones, contacts, and a history of their calls.

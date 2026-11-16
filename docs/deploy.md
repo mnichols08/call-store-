@@ -23,6 +23,8 @@ One process and one SQLite file. Any host that runs Node 22.13+ and keeps a disk
 
 The log prints `Set up the first owner: …/staff/accept?token=…`. Open it, choose an email and password. That link works once and expires; restarting before you use it prints a fresh one. Then invite everyone from **People** (owner only).
 
+Lost the owner's password and signed out everywhere? In a shell on the host, `npm run recover-owner` prints a one-time link that sets a new one (add the email if there is more than one owner). Another owner can also make a reset link from **People**.
+
 ## Backups
 
 ```sh

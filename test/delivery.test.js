@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deliveryTowns, inArea, cleanDelivery, NEXT } from '../src/domain/delivery.js';
-import { freshApp, ann, manager } from './helpers.js';
+import { freshApp, ann, manager, owner } from './helpers.js';
 
 test('the delivery towns come from the shop’s service areas', () => {
   const towns = deliveryTowns();
@@ -37,7 +37,8 @@ test('staff add a delivery to a call, move it along, and can’t change it once 
   const s = setup();
   const { app, call } = s;
   assert.equal(app.delivery.set(ann, 9999, { address: 'x' }).error, 'missing');
-  assert.equal(app.delivery.set(ann, call, { town: 'Oakland, MD' }).error, 'address');
+  const cash = app.calls.create(ann, { caller_name: 'Walk-in', request: 'Wiper blades' }).id;
+  assert.equal(app.delivery.set(ann, cash, { town: 'Oakland, MD' }).error, 'address', 'a cash customer has to say where');
   const made = app.delivery.set(ann, call, { town: 'Oakland, MD', address: '12 Main St', note: 'Ask for Bubba' });
   assert.ok(made.ok);
   assert.equal(made.outside, false);
@@ -96,4 +97,31 @@ test('a phone call is delivered without any web updates', async () => {
   assert.ok((await s.app.delivery.status(ann, s.call, 'out', {})).ok);
   assert.equal(s.db.prepare('SELECT count(*) n FROM portal_updates WHERE call_id = ?').get(s.call).n, 0);
   assert.equal((await s.app.delivery.status(ann, s.call, 'bogus', {})).error, 'status');
+});
+
+test('a customer on file is delivered to the address the shop knows; a cash customer is asked', () => {
+  const { app, call, cust } = setup();
+  assert.equal(cleanDelivery({}, undefined, { known: true }).ok, true);
+  assert.equal(cleanDelivery({}, undefined, { known: '9 Farm Ln' }).address, '9 Farm Ln');
+  assert.equal(cleanDelivery({ address: 'The barn' }, undefined, { known: '9 Farm Ln' }).address, 'The barn', 'what was typed wins');
+
+  // On file with no address written down: nothing has to be typed, and it isn't flagged.
+  const bare = app.delivery.set(ann, call, {});
+  assert.equal(bare.ok, true);
+  assert.equal(bare.outside, false);
+  assert.equal(app.delivery.get(ann, call).delivery.address, '');
+
+  // On file with an address: it is filled in.
+  app.customers.update(ann, cust, { name: 'Bubba Farms', kind: 'organization', address: '9 Farm Ln, Oakland' });
+  assert.equal(app.delivery.set(ann, call, { town: 'Oakland, MD' }).ok, true);
+  assert.equal(app.delivery.get(ann, call).delivery.address, '9 Farm Ln, Oakland');
+  assert.equal(app.delivery.list(ann).active[0].customer_address, '9 Farm Ln, Oakland');
+
+  // Only an owner can turn it off; then everyone is asked.
+  assert.equal(app.delivery.setKnown(manager, false).error, 'forbidden');
+  assert.equal(app.delivery.setKnown(owner, false).ok, true);
+  assert.equal(app.delivery.knownFor(call), false);
+  assert.equal(app.delivery.set(ann, call, {}).error, 'address');
+  assert.equal(app.delivery.setKnown(owner, true).ok, true);
+  assert.equal(app.delivery.set(ann, call, {}).ok, true);
 });

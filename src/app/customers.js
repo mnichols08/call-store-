@@ -235,6 +235,14 @@ export function createCustomers({ db, audit, now, changed }) {
       const rows = [];
       const seen = new Set();
       const add = (list) => list.forEach((row) => !seen.has(row.id) && seen.add(row.id) && rows.push(row));
+      // A bare number means "customer 965": the account with exactly that number first, then the
+      // record with that id. Only then phones, names and partial matches.
+      const number = /^#?\d{1,12}$/.test(q) ? q.replace('#', '') : '';
+      if (number) {
+        add(db.prepare('SELECT * FROM customers WHERE account_no = ?').all(number));
+        add(db.prepare('SELECT * FROM customers WHERE id = ?').all(Number(number)));
+      }
+      const exact = rows[0]?.id ?? null;
       if (searchableDigits(q) && /^[\d\s()+.\-x]+$/i.test(q)) {
         add(db.prepare(`SELECT DISTINCT c.* FROM customers c JOIN customer_phones p ON p.customer_id = c.id
           WHERE p.digits LIKE ? ORDER BY c.name LIMIT ?`).all(`%${digitsOf(q)}%`, limit));
@@ -242,7 +250,7 @@ export function createCustomers({ db, audit, now, changed }) {
       add(db.prepare(`SELECT * FROM customers WHERE name LIKE ? ESCAPE '\\' OR account_no LIKE ? ESCAPE '\\'
         OR id IN (SELECT customer_id FROM contacts WHERE name LIKE ? ESCAPE '\\')
         ORDER BY (status = 'active') DESC, name LIMIT ?`).all(like(q), like(q), like(q), limit));
-      const customers = rows.slice(0, limit).map((row) => ({ ...row, phones: phonesOf.all(row.id), open_calls: openCalls.get(row.id).n }));
+      const customers = rows.slice(0, limit).map((row) => ({ ...row, phones: phonesOf.all(row.id), open_calls: openCalls.get(row.id).n, ...(row.id === exact ? { exact: true } : {}) }));
       return { ok: true, customers };
     },
 
