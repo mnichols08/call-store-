@@ -1,12 +1,13 @@
 // The call pages: the shared queue and the workspace where a call is taken and worked.
 import { esc, ago, when, money } from '../html.js';
 import { badge, button, callBadges, empty, field, say, select } from '../ui.js';
-import { OUTCOMES, PRIORITIES, STATUS_LABEL, canMove } from '../../domain/call.js';
+import { OUTCOMES, PRIORITIES, STATUS_LABEL, WAITING, canMove } from '../../domain/call.js';
 import { can } from '../../domain/permissions.js';
 import { formatPhone } from '../../domain/phone.js';
 import { detailsPanel } from './details.js';
 import { tierBadge } from './customers.js';
-import { deliveryPanel } from './delivery.js';
+import { deliveryPanel, deliverySteps } from './delivery.js';
+import { STATUS_LABEL as DELIVERY_LABEL } from '../../domain/delivery.js';
 import { callPortalPanel } from './portal.js';
 import { suggestionsPanel } from './watch.js';
 import { partsPanel, vehiclePanels } from './vehicles.js';
@@ -38,6 +39,7 @@ const EVENT_WORDS = {
   released: () => 'Handed back to the queue',
   assigned: (d, p) => (d.to ? `Assigned to ${p.name(d.to)}` : 'Unassigned'),
   parked: () => 'Parked',
+  waiting: (d) => WAITING[d.reason] ?? 'Parked',
   resumed: () => 'Resumed',
   status: (d) => `Moved to ${STATUS_LABEL[d.to] ?? d.to}`,
   'help-requested': (d, p) => (d.from ? `Asked ${p.name(d.from)} for help` : 'Asked for help'),
@@ -165,6 +167,8 @@ ${result.calls.length
       case 'release': result = calls.release(who, id); done = 'Back in the queue.'; break;
       case 'assign': result = calls.assign(who, id, f.get('to')); done = 'Assigned.'; if (!result.error && f.get('to') && f.get('to') !== who.email) ctx.app.nudges.send(who, { to: f.get('to'), callId: id, message: 'Assigned this call to you.' }); break;
       case 'park': result = calls.move(who, id, 'parked'); done = 'Parked. Pick it up from the queue any time.'; break;
+      case 'wait': result = calls.wait(who, id, f.get('reason') ?? ''); done = f.get('reason') === 'ordered' ? 'Marked as parts on order. It stays in the queue until they come in.' : 'Marked as waiting on the customer.'; break;
+      case 'quick': result = calls.finish(who, id, { outcome: f.get('outcome') ?? '' }, 'closed'); done = `Closed: ${OUTCOMES[f.get('outcome')] ?? ''}.`; break;
       case 'resume': result = calls.move(who, id, 'working'); done = 'Back to work.'; break;
       case 'help': result = calls.requestHelp(who, id, f.get('from') || ''); done = 'Help requested.'; if (!result.error && f.get('from') && f.get('from') !== who.email) ctx.app.nudges.send(who, { to: f.get('from'), callId: id, message: 'Asked for your help on this call.' }); break;
       case 'help-cleared': result = calls.clearHelp(who, id); break;
@@ -206,6 +210,20 @@ async function workspace(ctx, got) {
         ${closed ? '' : `<form method="get" action="/calls/${call.id}" class="lookup" role="search"><label for="find">Find the caller <span class="muted">(phone, name or account)</span></label>
         <div class="row"><input id="find" name="find" value="${esc(find)}" autocomplete="off" inputmode="search" data-lookup="${call.id}"><button type="submit">Look up</button></div></form>
         <ul class="plain results" id="results" aria-live="polite">${found.map((c) => foundRow(page, call.id, c)).join('')}${find && !found.length ? '<li class="muted">No match. Keep going without one, or <a href="/customers/new?call=' + call.id + '">add them as a customer</a>.</li>' : ''}</ul>`}`;
+
+  // The one-tap row: where this call stands. Most calls end here without opening anything else.
+  const wrap = finished || closed || !can(who, 'call.edit') ? '' : (() => {
+    const d = app.delivery.get(who, call.id).delivery;
+    const known = app.delivery.knownFor(call.id);
+    const tap = (action, name, value, label, on = false) => `<form method="post" action="/calls/${call.id}/action"><input type="hidden" name="action" value="${action}"><input type="hidden" name="${name}" value="${value}"><button class="btn${on ? ' on' : ''}"${on ? ' aria-pressed="true"' : ''}>${label}</button></form>`;
+    const deliver = d
+      ? `<div class="wrap-delivery"><span><strong>Delivery: ${esc(DELIVERY_LABEL[d.status])}</strong><small>${esc(d.address || 'Usual address (on their account)')}${d.town ? `, ${esc(d.town)}` : ''}</small></span><div class="row">${deliverySteps(call.id, d)}</div></div>`
+      : known
+        ? `<form method="post" action="/calls/${call.id}/delivery"><button class="btn primary">Deliver it</button></form>`
+        : `<form method="post" action="/calls/${call.id}/delivery" class="wrap-cash"><label class="sr" for="wrap-address">Delivery address</label><input id="wrap-address" name="address" maxlength="200" required placeholder="Delivery address (cash customer)"><button class="btn primary">Deliver it</button></form>`;
+    return `<section class="panel wrap" id="wrap"><h2>Where does it stand?</h2>${deliver}
+      <div class="wrap-row">${tap('quick', 'outcome', 'sold', d ? 'Sold' : 'Sold, picked up')}${tap('wait', 'reason', 'ordered', 'Had to order parts', call.waiting === 'ordered' && call.status === 'parked')}${tap('wait', 'reason', 'customer', 'Waiting on customer', call.waiting === 'customer' && call.status === 'parked')}${tap('quick', 'outcome', 'quoted', 'Quoted only')}${tap('quick', 'outcome', 'no-sale', 'Lost the sale')}</div></section>`;
+  })();
 
   const outcomeForm = finished || closed ? '' : `<details class="panel"><summary>Finish this call</summary>
     <form method="post" action="/calls/${call.id}/action" class="stack">
@@ -257,6 +275,7 @@ async function workspace(ctx, got) {
 <div class="main-col">
   <section class="panel"><h2>Caller</h2>${lookup}</section>
   ${closed && !lineData.lines.length ? '' : quickEntry(ctx, call, lineData, closed)}
+  ${wrap}
   ${callPortalPanel(ctx, got, closed)}
   <form method="post" action="/calls/${call.id}/save" id="call-form" data-call="${call.id}" data-me="${esc(who.email)}" data-revision="${call.revision}" autocomplete="off">
     <input type="hidden" name="revision" value="${call.revision}">

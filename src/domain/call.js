@@ -18,6 +18,9 @@ const NEXT = Object.freeze({
 
 export const canMove = (from, to) => (NEXT[from] ?? []).includes(to);
 
+/** Why a parked call is waiting. */
+export const WAITING = Object.freeze({ ordered: 'Parts on order', customer: 'Waiting on customer' });
+
 export const PRIORITIES = Object.freeze(['low', 'normal', 'high']);
 
 export const OUTCOMES = Object.freeze({

@@ -2,6 +2,8 @@
 import { ago, duration, esc, when } from '../html.js';
 import { badge, button, callBadges, empty, stat } from '../ui.js';
 import { OUTCOMES } from '../../domain/call.js';
+import { STATUS_LABEL as DELIVERY_LABEL } from '../../domain/delivery.js';
+import { deliverySteps } from './delivery.js';
 import { can } from '../../domain/permissions.js';
 import { csv, series } from '../../../vendor/kit/reports/index.js';
 
@@ -35,6 +37,9 @@ export function overviewRoutes(router) {
         : '<p class="muted">Nobody has a call right now.</p>'}</section>`;
     }
     const day = new Intl.DateTimeFormat('en-US', { timeZone: ctx.config.zone, weekday: 'long', month: 'long', day: 'numeric' }).format(ctx.now());
+    // What still has to get to a customer. It stays here until someone marks it delivered.
+    const going = app.delivery.list(who).active ?? [];
+    const deliveries = going.length ? `<section class="panel"><h2>To deliver <a class="muted" href="/deliveries">See all</a></h2><ul class="plain">${going.slice(0, 8).map((d) => `<li><span><a href="/calls/${d.call_id}">#${d.call_id} ${esc(d.customer_name || d.caller_name || 'Cash customer')}</a><small>${esc(DELIVERY_LABEL[d.status])} · ${esc(d.address || d.customer_address || 'Usual address')}${d.town ? `, ${esc(d.town)}` : ''}</small></span><span class="row steps">${deliverySteps(d.call_id, d, 'list')}</span></li>`).join('')}</ul></section>` : '';
     return ctx.send('Today', `
 <div class="head"><div><h1>Today</h1><p class="muted">${esc(day)}</p></div></div>
 ${nudgePanel}
@@ -43,7 +48,7 @@ ${askedOfMe.length ? `<section class="panel asked" aria-label="Asked of you"><h2
 <div class="stats">
 ${stat(page, { label: 'Open calls', value: String(n.active) })}${stat(page, { label: 'Nobody has yet', value: String(n.unassigned) })}
 ${stat(page, { label: 'Mine', value: String(n.mine) })}${stat(page, { label: 'Asking for help', value: String(n.help) })}${stat(page, { label: 'Parked', value: String(n.parked) })}</div>
-<div class="workspace"><div class="main-col">${waiting}<section class="panel"><h2>Asking for help</h2>${help.length ? list(help) : '<p class="muted">Nobody needs a hand right now.</p>'}</section></div>
+<div class="workspace"><div class="main-col">${deliveries}${waiting}<section class="panel"><h2>Asking for help</h2>${help.length ? list(help) : '<p class="muted">Nobody needs a hand right now.</p>'}</section></div>
 <aside class="side-col">${team}<section class="panel"><h2>Yours</h2>${mine.length ? list(mine) : '<p class="muted">You haven’t taken a call yet. <a href="/calls?view=unassigned">See what’s waiting</a>.</p>'}</section></aside></div>`, { active: 'home', live: true });
   });
 
@@ -116,7 +121,7 @@ ${events.length ? `<table class="grid compact"><thead><tr><th>When</th><th>Who</
   });
 }
 
-const ACTION_WORDS = { 'call.created': 'Call started', 'call.claimed': 'Call taken', 'call.outcome': 'Call finished', 'call.help-requested': 'Asked for help', 'call.link-made': 'Link made', 'portal.request': 'Portal request', 'portal.joined': 'Joined the portal', 'portal.invited': 'Portal invite', 'portal.badge-scanned': 'Badge scanned', 'delivery.set': 'Delivery set', 'hours.set': 'Hours changed', 'orders.saved': 'Orders saved', 'orders.read': 'Orders read', 'item.created': 'Item added', 'customer.imported': 'Customers imported' };
+const ACTION_WORDS = { 'call.created': 'Call started', 'call.claimed': 'Call taken', 'call.outcome': 'Call finished', 'delivery.ready': 'Delivery ready', 'delivery.out': 'Out for delivery', 'delivery.delivered': 'Delivered', 'call.help-requested': 'Asked for help', 'call.link-made': 'Link made', 'portal.request': 'Portal request', 'portal.joined': 'Joined the portal', 'portal.invited': 'Portal invite', 'portal.badge-scanned': 'Badge scanned', 'delivery.set': 'Delivery set', 'hours.set': 'Hours changed', 'orders.saved': 'Orders saved', 'orders.read': 'Orders read', 'item.created': 'Item added', 'customer.imported': 'Customers imported' };
 const actionWords = (a) => ACTION_WORDS[a] ?? a.replace(/[.\-_]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
 
 function subjectLink(subject) {

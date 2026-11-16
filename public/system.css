@@ -145,3 +145,17 @@ body.app {
 .app form.stack > div > button.btn.primary:not(.x1):not(.x2), :root[data-theme='light'] .app form.stack > div > button.btn.primary:not(.x1):not(.x2) { background: var(--sys-accent); color: #fff; border-color: transparent; }
 .app table.hours { width: 100%; }
 .app table.hours tbody { display: table; width: 100%; }
+
+/* the one-tap row on a call */
+.app .wrap { border-color: var(--sys-accent); }
+.app .wrap-row { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+.app .wrap form { margin: 0; }
+.app .wrap .btn { min-height: 44px; padding-inline: 1rem; font-weight: 600; }
+.app .wrap .btn.on:not(.x1):not(.x2), :root[data-theme='light'] .app .wrap .btn.on:not(.x1):not(.x2) { background: #fff3c9; border-color: #b98900; color: #3d2f00; }
+.app .wrap-cash { display: flex; gap: .5rem; flex-wrap: wrap; }
+.app .wrap-cash input { flex: 1 1 14rem; min-height: 44px; }
+.app .wrap-delivery { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: space-between; }
+.app .wrap-delivery small { display: block; }
+.app .wrap .btn.primary:not(.x1):not(.x2), :root[data-theme='light'] .app .wrap .btn.primary:not(.x1):not(.x2), .app .steps .btn.primary:not(.x1):not(.x2), :root[data-theme='light'] .app .steps .btn.primary:not(.x1):not(.x2) { background: var(--sys-accent); color: #fff; border-color: transparent; }
+.app .steps { margin-top: .35rem; gap: .35rem; }
+.app .steps form { margin: 0; }

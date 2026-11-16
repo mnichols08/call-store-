@@ -6,7 +6,7 @@
 import { transaction } from '../infra/db.js';
 import { can } from '../domain/permissions.js';
 import { clip } from '../domain/text.js';
-import { canMove, cleanCallFields, cleanOutcome, summarize } from '../domain/call.js';
+import { canMove, cleanCallFields, cleanOutcome, summarize, WAITING } from '../domain/call.js';
 
 const like = (text) => `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
@@ -23,6 +23,8 @@ export function createCalls({ db, audit, now, changed }) {
 
   /** Apply a change to a call, bump its revision, and tell the page's other viewers. */
   function change(id, who, set, type, data) {
+    // A call stops waiting on parts or on the customer the moment it moves anywhere else.
+    if (set.status && set.status !== 'parked' && !('waiting' in set)) set = { ...set, waiting: '' };
     const keys = Object.keys(set);
     const values = keys.map((k) => (typeof set[k] === 'object' && set[k] !== null ? JSON.stringify(set[k]) : set[k]));
     db.prepare(`UPDATE calls SET ${keys.map((k) => `${k} = ?`).join(', ')}${keys.length ? ', ' : ''}revision = revision + 1, updated_at = ? WHERE id = ?`).run(...values, now(), id);
@@ -146,6 +148,20 @@ export function createCalls({ db, audit, now, changed }) {
       if (['resolved', 'closed'].includes(current.status)) return { error: 'wrong-status', status: current.status };
       return transaction(db, () => {
         change(id, who, { assignee: to || null, help: 'normal', help_from: null }, 'assigned', { to: to || null, from: current.assignee });
+        return done(id);
+      });
+    },
+
+    /** Park it with the reason: the part is on order, or the customer has to get back to us. */
+    wait(who, id, reason) {
+      const no = deny(who, 'call.move');
+      if (no) return no;
+      if (!(reason in WAITING)) return { error: 'wrong-status' };
+      const current = row(id);
+      if (!current) return { error: 'missing' };
+      if (current.status !== 'parked' && !canMove(current.status, 'parked')) return { error: 'wrong-status', status: current.status };
+      return transaction(db, () => {
+        change(id, who, { status: 'parked', waiting: reason, ...(current.assignee ? {} : { assignee: who.email }) }, 'waiting', { reason });
         return done(id);
       });
     },
