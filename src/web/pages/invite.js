@@ -33,7 +33,10 @@ export function inviteRoutes(router) {
       : q ? '<p class="muted">No customer matches. Add them below.</p>' : '';
     const roles = ctx.staff.grantable(ctx.who);
     const employee = roles.length
-      ? `<form class="panel stack" method="post" action="/invite/employee"><h2>An employee</h2>
+      ? `<form class="panel stack" method="post" action="/invite/crew"><h2>A coworker, the quick way</h2>
+          <p class="muted">Show them a code. They type their own name, email and password on their phone. It works once, for an hour.</p>
+          <div class="row"><label>What they do<select name="role">${roles.map((r) => `<option value="${r}"${r === 'staff' ? ' selected' : ''}>${ROLE_WORDS[r] ?? r}</option>`).join('')}</select></label><button class="btn primary">Show sign-up code</button></div></form>
+        <form class="panel stack" method="post" action="/invite/employee"><h2>An employee, by text or email</h2>
           <p class="muted">They sign in with their email and a password they choose (no passkeys on shop computers).</p>
           <div class="row"><label>Name<input name="name" maxlength="80" required autocomplete="off"></label><label>Email (their sign-in)<input name="email" type="email" maxlength="120" required autocomplete="off"></label></div>
           <label>Cell phone (to text it)<input name="phone" type="tel" maxlength="30" autocomplete="off"></label>
@@ -66,6 +69,13 @@ export function inviteRoutes(router) {
     if (r.via !== 'qr') return ctx.redirect(`/customers/${id}#portal`, { done: r.via === 'text' ? 'Invite texted.' : 'Invite emailed.' });
     const name = ctx.app.customers.get(ctx.who, id).customer?.name ?? '';
     return qrPage(ctx, `Invite someone at ${name}`, 'Have them scan this with their phone’s camera. It works once, for 3 days.', r.url, `Join ${name}`);
+  });
+
+  router.post('/invite/crew', async (ctx) => {
+    const made = await ctx.doors.crewCode(ctx.who, String(ctx.form.get('role') ?? 'staff'));
+    if (made.error) return ctx.forbidden();
+    ctx.app.audit.record(ctx.who.email, 'staff.invited', 'staff:sign-up-code', { via: 'qr', role: made.role });
+    return qrPage(ctx, 'Sign-up code for a coworker', `Have them scan this with their phone’s camera. They choose their own name, email and password, and join as ${(ROLE_WORDS[made.role] ?? made.role).toLowerCase()}. It works once, for an hour.`, `${originOf(ctx)}/crew/${made.code}`, `Join ${ctx.config.business}`);
   });
 
   router.post('/invite/employee', async (ctx) => {

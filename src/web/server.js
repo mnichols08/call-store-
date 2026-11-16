@@ -19,6 +19,8 @@ import { createPortalPages } from './portal.js';
 import { createSite } from './site.js';
 import { portalRoutes } from './pages/portal.js';
 import { inviteRoutes } from './pages/invite.js';
+import { systemRoutes } from './pages/system.js';
+import { createDoors } from './doors.js';
 import { LIMITS } from '../app/details.js';
 import { vehicleRoutes } from './pages/vehicles.js';
 import { createApp } from '../app/index.js';
@@ -102,9 +104,11 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   deliveryRoutes(router);
   portalRoutes(router);
   inviteRoutes(router);
+  systemRoutes(router);
 
   const customer = createCustomerPages({ app, config, zubra, now });
   const site = createSite({ config, app, now });
+  const doors = createDoors({ staff, store, config, zubra, audit: app.audit, now });
   const portal = createPortalPages({ app, config, zubra, now, repName: (email) => people.name(email) });
   const signInLimit = createLimiter({ max: 20, windowMs: 60_000, now });
 
@@ -292,6 +296,9 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
       if (await pages.handle(req, res, url, form)) return;
     }
 
+    // A QR code shown by someone signed in: onto their own phone, or a new coworker's sign-up.
+    if ((url.pathname.startsWith('/phone/') || url.pathname.startsWith('/crew/')) && await doors.handle(req, res, url, { posting, form, nonce })) return;
+
     const wantsJson = (req.headers.accept ?? '').includes('application/json');
     // The shop's public face: anyone can read it; staff who are signed in get Today at the same address.
     if (!posting && (req.method === 'GET' || req.method === 'HEAD')) {
@@ -320,7 +327,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const page = zubra.page({ nonce });
     const notice = notices.read(url);
     const ctx = {
-      req, res, url, form, raw, who, page, app, people, staff, config, push, log, params: found?.params ?? {}, wantsJson, now,
+      req, res, url, form, raw, who, page, app, people, staff, doors, config, push, log, params: found?.params ?? {}, wantsJson, now,
       send(title, body, { active = '', live = false, script = '' } = {}, status = 200) {
         html(res, status, page.finish(layout({ title, who, active, body, notice, business: config.business, live, script })), { 'content-security-policy': res.csp });
       },

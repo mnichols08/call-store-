@@ -159,3 +159,8 @@ body.app {
 .app .wrap .btn.primary:not(.x1):not(.x2), :root[data-theme='light'] .app .wrap .btn.primary:not(.x1):not(.x2), .app .steps .btn.primary:not(.x1):not(.x2), :root[data-theme='light'] .app .steps .btn.primary:not(.x1):not(.x2) { background: var(--sys-accent); color: #fff; border-color: transparent; }
 .app .steps { margin-top: .35rem; gap: .35rem; }
 .app .steps form { margin: 0; }
+
+/* phone hand-off and sign-up codes */
+.app .qr { max-width: 18rem; margin-inline: auto; background: #fff; padding: 1rem; border-radius: 12px; }
+.app .signup-qr { margin: .5rem 0 0; }
+@media (max-width: 760px) { .app .phone-hint { display: none; } }

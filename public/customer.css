@@ -42,7 +42,7 @@ body.customer {
 .customer .flash.problem { border-color: #f87171; background: #fef2f2; }
 
 /* controls */
-.customer input[type='search'], .customer input:not([type]), .customer input[type='text'], .customer input[type='email'], .customer input[type='number'], .customer input[type='tel'], .customer select, .customer textarea {
+.customer input[type='search'], .customer input:not([type]), .customer input[type='text'], .customer input[type='email'], .customer input[type='number'], .customer input[type='tel'], .customer input[type='password'], .customer input[type='url'], .customer select, .customer textarea {
   background: #fff; color: #0e1424; border: 2px solid #cfd7ea; border-radius: 10px; min-height: 44px;
 }
 .customer input:focus, .customer select:focus, .customer textarea:focus { border-color: #1553c7; outline: 3px solid rgba(255,194,14,.7); outline-offset: 1px; }

@@ -205,6 +205,7 @@ async function workspace(ctx, got) {
         ${customer.kind === 'organization' ? badge(page, 'outline', 'Business') : ''}${tierBadge(page, customer.tier)}${customer.status === 'inactive' ? badge(page, 'warning', 'Inactive') : ''}
         <small>${customer.account_no ? `Account ${esc(customer.account_no)} · ` : ''}${customer.phones.map((p) => esc(p.phone)).join(' · ')}</small></div>
         ${closed ? '' : frm('customer', 'Not them', '<input type="hidden" name="customer" value="">', 'ghost')}</div>
+        ${can(who, 'portal.invite') && !/^0+$/.test(customer.account_no ?? '') ? `<form method="post" action="/invite/customer" class="signup-qr"><input type="hidden" name="customer" value="${customer.id}"><input type="hidden" name="via" value="qr"><button class="link">Show a sign-up code for someone at ${esc(customer.name)}</button></form>` : ''}
         ${earlier.length ? `<details><summary>${earlier.length} earlier call${earlier.length > 1 ? 's' : ''}</summary><ul class="plain">${earlier.map((e) => `<li><a href="/calls/${e.id}">#${e.id}</a> ${esc(e.request || e.part_numbers || 'No request noted')} ${badge(page, 'outline', OUTCOMES[e.outcome] ?? STATUS_LABEL[e.status])}</li>`).join('')}</ul></details>` : ''}`
     : `<p class="muted anon">No customer attached. That’s fine; carry on, and attach one whenever you know who it is.</p>
         ${closed ? '' : `<form method="get" action="/calls/${call.id}" class="lookup" role="search"><label for="find">Find the caller <span class="muted">(phone, name or account)</span></label>
