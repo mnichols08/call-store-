@@ -81,3 +81,6 @@ body.customer {
   .cbar nav { order: 3; width: 100%; overflow-x: auto; flex-wrap: nowrap; padding-bottom: .25rem; }
   .cbar nav a { padding: .5rem .55rem; font-size: .88rem; }
 }
+
+.customer .logo-img { display: block; height: 58px; width: auto; }
+@media (max-width: 480px) { .customer .logo-img { height: 44px; } }

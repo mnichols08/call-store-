@@ -32,7 +32,13 @@ export function jsonLd(shop, url) {
   const data = {
     '@context': 'https://schema.org',
     '@type': 'AutoPartsStore',
+    '@id': `${url || ''}/#shop`,
     name: shop.name,
+    brand: { '@type': 'Brand', name: 'NAPA Auto Parts' },
+    areaServed: [{ '@type': 'City', name: shop.address.city }, { '@type': 'City', name: 'Oakland, MD' }, { '@type': 'AdministrativeArea', name: 'Garrett County, MD' }],
+    hasMap: mapsUrl(shop.address),
+    ...(url ? { image: [`${url}/assets/og-image.jpg`], logo: `${url}/assets/icon-512.png` } : {}),
+    makesOffer: [...shop.categories, ...shop.specialties].map(([name, description]) => ({ '@type': 'Offer', itemOffered: { '@type': 'Service', name, description } })),
     description: shop.tagline,
     telephone: shop.phone,
     email: shop.email,
@@ -46,6 +52,7 @@ export function jsonLd(shop, url) {
 
 export function createSite({ config, app, now, shop = SHOP }) {
   const base = () => (config.publicUrl ? config.publicUrl.replace(/\/$/, '') : '');
+  const originOf = (req) => (req?.headers?.host ? `${req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'}://${req.headers.host}` : '');
 
   function body() {
     const state = app.hours.state();
@@ -164,11 +171,20 @@ ${shop.showPartners ? `<section class="sec alt" id="partners"><div class="wrap">
   }
 
   /** The home page for someone who isn't signed in. */
-  function render(res, zubraPage) {
-    const url = base();
-    const description = `${shop.name}: ${shop.tagline}. NAPA Auto Parts in ${shop.address.city}, ${shop.address.state}. ${shop.phone}.`;
+  function render(res, zubraPage, req) {
+    const url = base() || originOf(req);
+    const a = shop.address;
+    const title = `${shop.name} | NAPA Auto Parts in ${a.city}, ${a.state}`;
+    const description = `NAPA Auto Parts store in ${a.city}, ${a.state}, serving Garrett County since 1981. Hydraulic hoses, paint mixing, batteries and special orders. Call ${shop.phone}.`;
+    const image = url ? `${url}/assets/og-image.jpg` : '/assets/og-image.jpg';
+    const alt = `${shop.name}, a NAPA Auto Parts store in ${a.city}, ${a.state}`;
     const head = `<meta name="description" content="${esc(description)}">
-<meta property="og:title" content="${esc(shop.name)}"><meta property="og:description" content="${esc(description)}"><meta property="og:type" content="website">${url ? `\n<link rel="canonical" href="${esc(url)}/">` : ''}
+<meta name="author" content="${esc(shop.name)}">${url ? `\n<link rel="canonical" href="${esc(url)}/">` : ''}
+<meta property="og:site_name" content="${esc(shop.name)}"><meta property="og:type" content="website"><meta property="og:locale" content="en_US">
+<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}">${url ? `<meta property="og:url" content="${esc(url)}/">` : ''}
+<meta property="og:image" content="${esc(image)}"><meta property="og:image:type" content="image/jpeg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="${esc(alt)}">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${esc(title)}"><meta name="twitter:description" content="${esc(description)}"><meta name="twitter:image" content="${esc(image)}"><meta name="twitter:image:alt" content="${esc(alt)}">
+<meta name="format-detection" content="telephone=yes">
 <script type="application/ld+json">${jsonLd(shop, url)}</script>`;
     res.writeHead(200, {
       'content-type': 'text/html; charset=utf-8',
@@ -176,11 +192,17 @@ ${shop.showPartners ? `<section class="sec alt" id="partners"><div class="wrap">
       'content-security-policy': res.csp,
       'x-content-type-options': 'nosniff',
     });
-    res.end(zubraPage.finish(layout({ title: shop.name, who: null, body: body(), business: shop.name, head, sub: '', bodyClass: 'site', bare: true })));
+    res.end(zubraPage.finish(layout({ title: shop.name, fullTitle: title, who: null, body: body(), business: shop.name, head, sub: '', bodyClass: 'site', bare: true, index: true })));
   }
 
   const robots = () => `User-agent: *\nDisallow: /staff\nDisallow: /portal\nDisallow: /join/\nDisallow: /hello/\nDisallow: /badge/\nDisallow: /d/\nAllow: /\n${base() ? `Sitemap: ${base()}/sitemap.xml\n` : ''}`;
-  const sitemap = () => `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${esc(base())}/</loc></url></urlset>\n`;
+  const sitemap = () => `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${esc(base())}/</loc><lastmod>${new Date(now()).toISOString().slice(0, 10)}</lastmod></url></urlset>\n`;
 
-  return { render, robots, sitemap, hasUrl: () => Boolean(base()) };
+  const manifest = () => JSON.stringify({
+    name: shop.name, short_name: 'Southern Auto', description: shop.tagline, start_url: '/', scope: '/', display: 'standalone',
+    background_color: '#0a1633', theme_color: '#0b132b',
+    icons: [{ src: '/assets/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/assets/icon-512.png', sizes: '512x512', type: 'image/png' }, { src: '/assets/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }],
+  });
+
+  return { render, manifest, robots, sitemap, hasUrl: () => Boolean(base()) };
 }

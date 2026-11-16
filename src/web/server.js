@@ -37,7 +37,7 @@ import { ROLES } from '../domain/permissions.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(here, '..', '..', 'public');
-const TYPES = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.webp': 'image/webp' };
+const TYPES = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.webp': 'image/webp', '.png': 'image/png', '.jpg': 'image/jpeg' };
 const MAX_BODY = 256 * 1024;
 const IMPORT_BODY = 2 * 1024 * 1024; // a pasted customer list, percent-encoded, is a few times its size
 
@@ -189,7 +189,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
         return false;
       }
     }
-    if (!/^(islands\/)?[a-z0-9-]+\.(css|js|webp)$/.test(name)) return false;
+    if (!/^(islands\/)?[a-z0-9-]+\.(css|js|webp|png|jpg)$/.test(name)) return false;
     try {
       const data = await readFile(join(PUBLIC, name));
       res.writeHead(200, { 'content-type': TYPES[extname(name)], 'cache-control': config.production ? 'public, max-age=3600' : 'no-cache', 'x-content-type-options': 'nosniff' });
@@ -292,9 +292,11 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const wantsJson = (req.headers.accept ?? '').includes('application/json');
     // The shop's public face: anyone can read it; staff who are signed in get Today at the same address.
     if (!posting && (req.method === 'GET' || req.method === 'HEAD')) {
+      if (url.pathname === '/favicon.ico') { res.writeHead(301, { location: '/assets/icon-32.png', 'cache-control': 'public, max-age=86400' }); return res.end(); }
+      if (url.pathname === '/manifest.webmanifest') return html(res, 200, site.manifest(), { 'content-type': 'application/manifest+json; charset=utf-8', 'cache-control': 'public, max-age=3600' });
       if (url.pathname === '/robots.txt') return html(res, 200, site.robots(), { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' });
       if (url.pathname === '/sitemap.xml' && site.hasUrl()) return html(res, 200, site.sitemap(), { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' });
-      if (url.pathname === '/' && !who && !wantsJson) return site.render(res, zubra.page({ nonce }));
+      if (url.pathname === '/' && !who && !wantsJson) return site.render(res, zubra.page({ nonce }), req);
     }
     if (!who) {
       if (wantsJson) return json(res, { error: 'signed-out' }, 401);
