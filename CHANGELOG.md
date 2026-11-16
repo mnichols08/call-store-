@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased: system check, phone codes, quick sign-up
+- **System check** (owner only, under Manage): shows whether the AI, email, texts, site address and backups are on, and a "Test the AI" button that reports the service's own error (wrong key, wrong model, no credit).
+- Settings forgive stray quotes and capital letters (`MAIL_PROVIDER="RESEND"` now works).
+- **Scan a page**: on a computer, "Use my phone's camera" shows a code that signs you in on your phone and opens the scanner. When the AI is off, the page says so and points to System check.
+- **Coworker sign-up code**: Invite, then "Show sign-up code". They scan it and type their own name, email and password. Works once, for an hour, with the role you chose.
+- **Customer sign-up code from a call**: under the customer's name, one tap shows the code. The customer is already filled in; the person only gives their name.
+- Password boxes on the customer pages now match the other fields.
+
 ## Unreleased: one tap to say where a call stands
 - Every open call has a "Where does it stand?" row under the parts: Deliver it, Sold, Had to order parts, Waiting on customer, Quoted only, Lost the sale. One tap each, nothing else to fill in.
 - Deliver it needs no typing for a customer on file. The row then shows the delivery with its next steps (Ready to go, Out for delivery, Delivered).

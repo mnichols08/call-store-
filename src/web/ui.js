@@ -58,6 +58,7 @@ const NAV = [
     ['/outbox', 'Outbox', 'outbox', 'portal.manage', 'M3 5h18v14H3zM3 6l9 7 9-7'],
     ['/hours', 'Hours', 'hours', 'hours.manage', 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2'],
     ['/staff/people', 'People', 'people', 'owner', 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20a7 7 0 0 1 14 0M17 11a3 3 0 1 0 0-6M22 20a7 7 0 0 0-4-6'],
+    ['/system', 'System check', 'system', 'owner', 'M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7zM9 12l2 2 4-4'],
   ]],
 ];
 const icon = (d) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;

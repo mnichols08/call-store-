@@ -1,4 +1,13 @@
 // Configuration comes from the environment, once, here.
+// Settings pasted as KEY="value" sometimes keep their quotes, and providers get typed in capitals.
+// Neither should turn a feature off without saying why.
+for (const [key, value] of Object.entries(process.env)) {
+  const quoted = /^\s*(["'])(.*)\1\s*$/s.exec(value ?? '');
+  if (quoted) process.env[key] = quoted[2];
+}
+for (const key of ['MAIL_PROVIDER', 'SMS_PROVIDER', 'NODE_ENV']) if (process.env[key]) process.env[key] = process.env[key].trim().toLowerCase();
+for (const key of ['ANTHROPIC_API_KEY', 'RESEND_API_KEY', 'AI_MODEL', 'PUBLIC_URL', 'DATABASE_PATH']) if (process.env[key]) process.env[key] = process.env[key].trim();
+
 const production = process.env.NODE_ENV === 'production';
 
 export const config = Object.freeze({

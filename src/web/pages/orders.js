@@ -98,7 +98,9 @@ export function ordersRoutes(router) {
       <section class="panel stack">${on ? `<p>Take a photo of a page from the order notebook, flat and in good light, with the whole page in the frame. The AI reads it and you check every line before anything is saved.</p>
         <p class="muted">The photo is sent to the AI service to be read. It isn’t kept here, and the page it shows may include customers’ names.</p>
         <label class="upload">Take or choose a photo<input type="file" id="sheet-file" accept="image/*" capture="environment" data-read="/orders/read"></label>
-        <p class="muted" id="sheet-status" role="status"></p><img id="sheet-preview" class="sheet-preview" alt="The page you chose" hidden>` : `<p>${esc(WORDS.off)}</p>`}</section>
+        <p class="muted" id="sheet-status" role="status"></p><img id="sheet-preview" class="sheet-preview" alt="The page you chose" hidden>
+        <p class="phone-hint">On a computer? <a class="btn" href="/phone?to=/orders/scan">Use my phone’s camera</a></p>` : `<p class="flash problem" role="alert">The page reader needs the AI, and the AI isn’t switched on, so there is no camera button yet.</p>
+        <p>${ctx.who.roles.includes('owner') ? 'Open <a href="/system">System check</a> to see what is missing and test it.' : 'Ask the owner to open System check.'}</p>`}</section>
       <section id="sheet-review"></section>`, { active: 'orders', script: on ? '<script src="/assets/orders.js" defer></script>' : '' });
   });
 

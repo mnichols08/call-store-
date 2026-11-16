@@ -79,6 +79,24 @@ export function createAi({ apiKey = '', model = 'claude-haiku-5-5', fetcher = gl
   return {
     enabled,
     model,
+
+    /** Ask for one word, to prove the key and the model work. Never throws: `{ ok }` or `{ error, status, detail }` in the service's own words. */
+    async check() {
+      if (!enabled) return { error: 'off', status: 0, detail: 'ANTHROPIC_API_KEY is not set.' };
+      try {
+        const response = await fetcher(API, { method: 'POST', signal: AbortSignal.timeout(20_000),
+          headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+          body: JSON.stringify({ model, max_tokens: 5, messages: [{ role: 'user', content: 'Reply with the word OK.' }] }) });
+        if (response.ok) return { ok: true, status: response.status };
+        const text = await response.text().catch(() => '');
+        let detail = text.slice(0, 300);
+        try { detail = JSON.parse(text).error?.message ?? detail; } catch {}
+        const code = response.status === 401 || response.status === 403 ? 'auth' : response.status === 404 ? 'model' : response.status === 429 ? 'rate' : response.status >= 500 ? 'busy' : 'failed';
+        return { error: code, status: response.status, detail: String(detail).slice(0, 300) };
+      } catch (error) {
+        return { error: error?.name === 'TimeoutError' ? 'timeout' : 'failed', status: 0, detail: String(error?.cause?.code ?? error?.message ?? 'No answer').slice(0, 200) };
+      }
+    },
     /** Candidates for a request, made safe, plus what it cost. Throws AiError. */
     async suggest(request) {
       if (!enabled) throw new AiError('off', SAYS.off);
