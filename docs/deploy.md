@@ -30,7 +30,7 @@ npm run backup            # backups/call-store-YYYY-MM-DD.db next to the databas
 npm run backup -- /data/backups
 ```
 
-It uses SQLite's `VACUUM INTO`, which is a consistent copy while the app is running. Run it daily from a scheduled job on the same volume, and copy the files off the volume now and then: a backup on the same disk doesn't survive losing the disk. To restore, stop the app, replace the database file with a backup, start it.
+The app takes this copy by itself when it starts and then every 24 hours (`BACKUP_DIR` to move them, `BACKUP_EVERY_HOURS=0` to turn it off), and logs `Backed up to …` or `Backup failed: …`. It uses SQLite's `VACUUM INTO`, which is a consistent copy while the app is running. Copy the files off the volume now and then: a backup on the same disk doesn't survive losing the disk. To restore, stop the app, replace the database file with a backup, start it.
 
 ## Updating
 
