@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased: invites, passkeys and texts
+- New **Invite** page (staff menu). Someone at a customer: find or add the customer first, then send a one-time link by text, email, or a QR code on your screen. The person picks their name, then a passkey or a username and password; they never choose their customer. The same "Invite a person" form is on each customer's Online account panel.
+- Employees: managers invite counter staff, the owner invites anyone (kit PR #21). The link goes by text, email or QR; the employee picks a password (no passkeys for staff).
+- Portal sign-in: passkey, or username and password, with the emailed link kept as a backup. Accounts no longer need an email; updates go by text to accounts with only a phone.
+- Texts go through Brevo or Twilio (`SMS_PROVIDER`), or wait in the Outbox when neither is set up.
+- Migration 014 rebuilds `portal_accounts`; migrations that rebuild a table run with foreign keys off and checked before commit.
+
 ## Unreleased: backups and support
 - The app now backs itself up: a copy of the database at start and every 24 hours, newest 14 kept (`BACKUP_DIR`, `BACKUP_EVERY_HOURS`).
 - New `docs/support.md` (what to do when something breaks, handing it over) and `docs/owner-sheet.md` (a one-page "if it stops working" sheet for the owner).
