@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: camera on phones only
+- Camera buttons (Scan a customer, Scan a page) show only on phone-sized touch screens. Desktops don't offer the webcam.
+- On a computer, Scan and Orders show a button for a QR code that signs you in on your phone and opens that page there. It works once, for five minutes (kit PR #22).
+
 ## Unreleased: invites, passkeys and texts
 - New **Invite** page (staff menu). Someone at a customer: find or add the customer first, then send a one-time link by text, email, or a QR code on your screen. The person picks their name, then a passkey or a username and password; they never choose their customer. The same "Invite a person" form is on each customer's Online account panel.
 - Employees: managers invite counter staff, the owner invites anyone (kit PR #21). The link goes by text, email or QR; the employee picks a password (no passkeys for staff).

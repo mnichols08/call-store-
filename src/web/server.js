@@ -19,6 +19,7 @@ import { createPortalPages } from './portal.js';
 import { createSite } from './site.js';
 import { portalRoutes } from './pages/portal.js';
 import { inviteRoutes } from './pages/invite.js';
+import { phoneRoutes, handlePhoneLink } from './pages/phone.js';
 import { LIMITS } from '../app/details.js';
 import { vehicleRoutes } from './pages/vehicles.js';
 import { createApp } from '../app/index.js';
@@ -102,6 +103,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   deliveryRoutes(router);
   portalRoutes(router);
   inviteRoutes(router);
+  phoneRoutes(router);
 
   const customer = createCustomerPages({ app, config, zubra, now });
   const site = createSite({ config, app, now });
@@ -300,6 +302,10 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
       if (url.pathname === '/robots.txt') return html(res, 200, site.robots(), { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' });
       if (url.pathname === '/sitemap.xml' && site.hasUrl()) return html(res, 200, site.sitemap(), { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' });
       if (url.pathname === '/' && !who && !wantsJson) return site.render(res, zubra.page({ nonce }), req);
+    }
+    if (url.pathname.startsWith('/phone/') && url.pathname !== '/phone/code') {
+      const send = (status, title, body) => html(res, status, zubra.page({ nonce }).finish(layout({ title, who: null, body, business: config.business })), { 'content-security-policy': res.csp, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
+      if (await handlePhoneLink({ req, res, url, posting, staff, send, redirect })) return;
     }
     if (!who) {
       if (wantsJson) return json(res, { error: 'signed-out' }, 401);

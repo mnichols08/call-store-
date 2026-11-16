@@ -3,6 +3,7 @@ import { esc, ago, when } from '../html.js';
 import { say } from '../ui.js';
 import { can } from '../../domain/permissions.js';
 import { qrSvg } from '../../infra/qr.js';
+import { phoneHandOff } from './phone.js';
 import { UPDATE_KINDS, STAFF_KINDS } from '../../domain/portal.js';
 import { PORTAL } from '../../app/portal.js';
 import { SHOP } from '../../domain/shop.js';
@@ -91,8 +92,9 @@ export function portalRoutes(router) {
         <p>Ask them to open <strong>My code</strong> on their phone, then point the camera at it. It works once, for ten minutes.</p>
         <video id="scan-video" playsinline muted hidden></video>
         <p id="scan-status" class="muted" role="status"></p>
-        <div class="row"><button type="button" id="scan-start" class="btn primary" hidden>Use the camera</button>
+        <div class="row phone-only"><button type="button" id="scan-start" class="btn primary" hidden>Use the camera</button>
           <label class="btn" id="scan-photo-label" hidden>Take a photo of it<input type="file" id="scan-photo" accept="image/*" capture="environment" hidden></label></div>
+        ${phoneHandOff('/scan', 'Use your phone’s camera')}
         <div id="scan-result" aria-live="polite"></div>
         <form method="post" action="/scan/badge" class="stack"><label>Or type or paste the code<input name="code" autocomplete="off" required placeholder="The link under the code, or the code itself"></label><button class="btn">Look up</button></form>
       </section><script type="module" src="/assets/scan.js"></script>`, { active: 'scan' });

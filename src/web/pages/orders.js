@@ -3,6 +3,7 @@ import { esc } from '../html.js';
 import { say } from '../ui.js';
 import { can } from '../../domain/permissions.js';
 import { createLimiter } from '../limiter.js';
+import { phoneHandOff } from './phone.js';
 import { SHEET_BYTES } from '../../app/orders.js';
 
 const WORDS = {
@@ -73,7 +74,7 @@ export function ordersRoutes(router) {
       <td>${edit ? `<form method="post" action="/orders/${o.id}/mark"><input type="hidden" name="field" value="received"><input type="hidden" name="value" value="${o.received ? '0' : '1'}"><button class="${o.received ? 'btn primary' : 'btn'}" aria-pressed="${o.received ? 'true' : 'false'}">${o.received ? 'Got it' : 'Waiting'}</button></form>` : (o.received ? 'Got it' : 'Waiting')}</td>
       <td>${edit ? `<form method="post" action="/orders/${o.id}/mark"><input type="hidden" name="field" value="paid"><input type="hidden" name="value" value="${o.paid ? '0' : '1'}"><button class="${o.paid ? 'btn primary' : 'btn'}" aria-pressed="${o.paid ? 'true' : 'false'}">${o.paid ? 'Paid' : 'Unpaid'}</button></form>` : (o.paid ? 'Paid' : 'Unpaid')}</td>
       <td>${can(who, 'order.scan') ? `<form method="post" action="/orders/${o.id}/remove"><button class="link" aria-label="Remove this order">Remove</button></form>` : ''}</td></tr>`;
-    return ctx.send('Orders', `<div class="head"><h1>Special orders</h1><div class="row">${can(who, 'order.scan') ? '<a class="btn primary" href="/orders/scan">Scan a page</a>' : ''}</div></div>
+    return ctx.send('Orders', `<div class="head"><h1>Special orders</h1><div class="row">${can(who, 'order.scan') ? `<a class="btn primary phone-only" href="/orders/scan">Scan a page</a>${phoneHandOff('/orders/scan', 'Scan a page with your phone', { compact: true })}` : ''}</div></div>
       <form method="get" action="/orders" class="search" role="search"><input type="search" name="q" value="${esc(q)}" placeholder="Customer, part number, supplier" aria-label="Search orders"><label class="inline"><input type="checkbox" name="open" value="1"${open ? ' checked' : ''}> Still waiting</label><button type="submit">Search</button></form>
       ${days.length ? days.map((d) => `<section class="panel stack"><h2>${esc(niceDate(d.date))}</h2><div class="scroll-x"><table class="grid compact orders"><thead><tr><th>Line</th><th>Part number</th><th>Ordered from</th><th>Customer</th><th>Status</th><th>Payment</th><th></th></tr></thead><tbody>${d.rows.map(row).join('')}</tbody></table></div></section>`).join('') : `<section class="panel"><p class="muted">${q || open ? 'Nothing matches.' : 'No orders yet. Scan a page of the notebook to bring them in.'}</p></section>`}`, { active: 'orders', live: false });
   });
@@ -97,7 +98,8 @@ export function ordersRoutes(router) {
     return ctx.send('Scan a page', `<div class="head"><h1>Scan a page</h1><a class="btn" href="/orders">Back</a></div>
       <section class="panel stack">${on ? `<p>Take a photo of a page from the order notebook, flat and in good light, with the whole page in the frame. The AI reads it and you check every line before anything is saved.</p>
         <p class="muted">The photo is sent to the AI service to be read. It isn’t kept here, and the page it shows may include customers’ names.</p>
-        <label class="upload">Take or choose a photo<input type="file" id="sheet-file" accept="image/*" capture="environment" data-read="/orders/read"></label>
+        <label class="upload phone-only">Take a photo of the page<input type="file" id="sheet-file" accept="image/*" capture="environment" data-read="/orders/read"></label>
+        ${phoneHandOff('/orders/scan', 'Take the photo with your phone')}
         <p class="muted" id="sheet-status" role="status"></p><img id="sheet-preview" class="sheet-preview" alt="The page you chose" hidden>` : `<p>${esc(WORDS.off)}</p>`}</section>
       <section id="sheet-review"></section>`, { active: 'orders', script: on ? '<script src="/assets/orders.js" defer></script>' : '' });
   });
