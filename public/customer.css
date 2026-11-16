@@ -84,3 +84,10 @@ body.customer {
 
 .customer .logo-img { display: block; height: 58px; width: auto; }
 @media (max-width: 480px) { .customer .logo-img { height: 44px; } }
+
+/* your picture */
+.customer .avatar { width: 36px; height: 36px; border-radius: 50%; display: inline-grid; place-items: center; background: #ffc21a; color: #0a1633; font-weight: 800; font-size: .85rem; object-fit: cover; flex: none; }
+.customer .me-pic { display: inline-flex; margin-right: .5rem; }
+.customer .avatar.big { width: 96px; height: 96px; font-size: 2rem; }
+.customer .avatar-now { display: flex; align-items: center; gap: 1rem; }
+.customer input, .customer select, .customer textarea { font: inherit; }

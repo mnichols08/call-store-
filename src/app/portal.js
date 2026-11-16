@@ -294,6 +294,22 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
       const a = account(s.account_id);
       return a && a.status === 'active' ? { ...a, business: customerName(a.customer_id) } : null;
     },
+    /** A person changes their own details. Email stays optional, and nobody else's can be taken. */
+    updateAccount(acct, input = {}) {
+      const me = acct?.id ? account(acct.id) : null;
+      if (!me || me.status !== 'active') return { error: 'forbidden' };
+      const tidy = (v, max) => String(v ?? '').replace(/[\u0000-\u001f\u007f<>]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+      const name = tidy(input.name, 80);
+      const email = tidy(input.email, 120).toLowerCase();
+      const phone = tidy(input.phone, 30);
+      if (!name) return { error: 'name' };
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'email' };
+      if (phone && phone.replace(/\D/g, '').length < 7) return { error: 'phone' };
+      if (email && db.prepare('SELECT 1 FROM portal_accounts WHERE email = ? AND id != ?').get(email, me.id)) return { error: 'email-taken' };
+      db.prepare('UPDATE portal_accounts SET name = ?, email = ?, phone = ? WHERE id = ?').run(name, email || null, phone, me.id);
+      audit.record(tag(me), 'portal.account-updated', `portal:${me.id}`, {});
+      return { ok: true };
+    },
     signOut(token) {
       if (typeof token === 'string') db.prepare('DELETE FROM portal_sessions WHERE token_hash = ?').run(hash(token));
     },

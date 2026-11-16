@@ -20,6 +20,7 @@ import { createSite } from './site.js';
 import { portalRoutes } from './pages/portal.js';
 import { inviteRoutes } from './pages/invite.js';
 import { systemRoutes } from './pages/system.js';
+import { accountRoutes } from './pages/account.js';
 import { createDoors } from './doors.js';
 import { LIMITS } from '../app/details.js';
 import { vehicleRoutes } from './pages/vehicles.js';
@@ -105,6 +106,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   portalRoutes(router);
   inviteRoutes(router);
   systemRoutes(router);
+  accountRoutes(router);
 
   const customer = createCustomerPages({ app, config, zubra, now });
   const site = createSite({ config, app, now });
@@ -281,6 +283,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     }
 
     const who = staff.session(req);
+    if (who) who.avatar = app.avatars.version(`staff:${who.account}`);
     res.cstoreWho = who;
 
     // The kit's staff routes: sign-in, sign-out, invitations, people, password.
@@ -327,7 +330,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const page = zubra.page({ nonce });
     const notice = notices.read(url);
     const ctx = {
-      req, res, url, form, raw, who, page, app, people, staff, doors, config, push, log, params: found?.params ?? {}, wantsJson, now,
+      req, res, url, form, raw, who, page, app, people, staff, store, doors, config, push, log, params: found?.params ?? {}, wantsJson, now,
       send(title, body, { active = '', live = false, script = '' } = {}, status = 200) {
         html(res, status, page.finish(layout({ title, who, active, body, notice, business: config.business, live, script })), { 'content-security-policy': res.csp });
       },

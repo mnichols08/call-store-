@@ -68,7 +68,16 @@ const sidebar = (who, active) => NAV.map(([section, links]) => {
     ? `<div class="side-group"><p class="side-title">${esc(section)}</p>${shown.map(([href, label, key, , d]) => `<a href="${href}"${key === active ? ' aria-current="page"' : ''}>${icon(d)}<span>${esc(label)}</span></a>`).join('')}</div>`
     : '';
 }).join('');
-const initials = (who) => esc(String(who.name || who.email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join(''));
+export const initials = (who) => esc(String(who.name || who.email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join(''));
+/** The round picture for a person: their photo when they chose one, their initials otherwise. `src` is where the photo is served. */
+export const avatarHtml = (who, src = '') => (src ? `<img class="avatar" src="${esc(src)}" alt="" width="36" height="36">` : `<span class="avatar" aria-hidden="true">${initials(who)}</span>`);
+/** The part of an account page where someone picks a photo or goes back to initials. */
+export const avatarEditor = ({ who, src, action, removeAction }) => `<section class="panel stack avatar-edit"><h2>Your picture</h2>
+  <div class="row avatar-now">${src ? `<img class="avatar big" src="${esc(src)}" alt="Your picture" width="96" height="96">` : `<span class="avatar big" aria-label="Your initials">${initials(who)}</span>`}
+    <p class="muted">${src ? 'Showing your photo.' : 'Showing your initials.'} It appears next to your name.</p></div>
+  <form method="post" action="${action}" class="stack"><input type="hidden" name="picture" value="">
+    <label class="upload">Choose a photo<input type="file" accept="image/*" data-avatar-file></label><p class="muted" data-avatar-status role="status"></p></form>
+  ${src ? `<form method="post" action="${removeAction}"><button class="btn">Use my initials instead</button></form>` : ''}</section>`;
 
 /**
  * A whole page. `notice` is the signed one-line message from the last form (problem / done), and
@@ -106,7 +115,7 @@ ${shell ? `<div class="shell">
 <a class="side-brand" href="${home}"><span class="mark" aria-hidden="true">${esc(business[0] ?? 'S')}</span><span>${esc(business)}<small>${esc(sub)}</small></span></a>
 <form method="post" action="/calls" class="side-new"><button class="new-call" type="submit" title="New call (N)">${icon('M12 5v14M5 12h14')}New call</button></form>
 <nav>${sidebar(who, active)}</nav>
-<div class="side-foot"><a href="/staff/password" class="me" title="Change password"><span class="avatar" aria-hidden="true">${initials(who)}</span><span class="who"><span>${esc(who.name || who.email)}</span><small>${esc(who.roles.join(', '))}</small></span></a>
+<div class="side-foot"><a href="/account" class="me" title="Your account">${avatarHtml(who, who.avatar ? `/avatar/staff/${who.account}?v=${who.avatar}` : '')}<span class="who"><span>${esc(who.name || who.email)}</span><small>${esc(who.roles.join(', '))}</small></span></a>
 <div class="row"><form method="post" action="/staff/sign-out"><button class="link" type="submit">Sign out</button></form>${toggle}</div></div>
 </aside>
 <div class="scrim" data-shell-close></div>
