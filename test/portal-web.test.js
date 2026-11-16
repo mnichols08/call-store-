@@ -157,7 +157,7 @@ test('the outbox is for managers, and staff can remove a member', async () => {
 
 /** Read the address out of a QR code on a page, the way a phone would. */
 function scanCode(html) {
-  const svg = /<svg[^>]*viewBox="0 0 (\d+) [^]*?<\/svg>/.exec(html);
+  const svg = /<svg[^>]*viewBox="0 0 (\d+) [^]*?<\/svg>/.exec(html.replace(/<svg class="ic"[^]*?<\/svg>/g, ""));
   assert.ok(svg, 'a QR code is on the page');
   const side = Number(svg[1]);
   const scale = 6;
@@ -245,4 +245,34 @@ test('a rep’s QR: a customer scans it, asks for access, and staff approve', as
   assert.equal((await visitor(path)).status, 404);
   assert.equal((await visitor('/hello/' + 'q'.repeat(30))).status, 404);
   assert.equal((await visitor(path, { method: 'POST', form: { name: 'A', business: 'B', email: 'a@b.com' } })).status, 404);
+});
+
+test('delivery: the form asks for it, a missing address is refused, and staff plan the run from the list', async () => {
+  const made = await olive(`/customers/${bubba}/portal/invite`, { method: 'POST', form: {} });
+  const invite = /\/join\/([\w-]{20,})/.exec(made.text)[1];
+  const dee = await join(invite, 'Dee', 'dee@farm.com');
+  const form = await dee.me('/portal/requests/new');
+  assert.match(form.text, /name="deliveryAddress"/);
+  assert.match(form.text, /<option value="Oakland, MD">/);
+  const bad = await dee.me('/portal/requests', { method: 'POST', form: { request: 'Hose', fulfilment: 'deliver', deliveryTown: 'Oakland, MD', deliveryAddress: '  ' } });
+  assert.equal(bad.status, 303);
+  assert.match(bad.location, /problem=address/);
+  assert.equal(db.prepare("SELECT count(*) n FROM calls WHERE request = 'Hose'").get().n, 0, 'nothing was created');
+  const sent = await dee.me('/portal/requests', { method: 'POST', form: { request: 'Hose', fulfilment: 'deliver', deliveryTown: 'Terra Alta, WV', deliveryAddress: '5 Mill Rd', deliveryNote: 'Leave at the shop door' } });
+  assert.equal(sent.status, 303);
+  const id = /\/portal\/requests\/(\d+)/.exec(sent.location)[1];
+  assert.match((await dee.me(`/portal/requests/${id}`)).text, /5 Mill Rd/);
+
+  const list = await olive('/deliveries');
+  assert.equal(list.status, 200);
+  assert.match(list.text, /Terra Alta, WV/);
+  assert.match(list.text, /Driver sheet/);
+  const sheet = await olive('/deliveries/print');
+  assert.match(sheet.text, /5 Mill Rd/);
+  assert.match(sheet.text, /Leave at the shop door/);
+  assert.match((await olive(`/calls/${id}`)).text, /id="delivery"/);
+  assert.equal((await olive(`/calls/${id}/delivery/status`, { method: 'POST', form: { status: 'out' } })).status, 303);
+  assert.match((await dee.me(`/portal/requests/${id}`)).text, /Out for delivery/);
+  assert.match((await dee.me(`/portal/requests/${id}`)).text, /On the way/, 'and it shows in the updates');
+  assert.equal((await browser()('/deliveries')).location, '/staff/sign-in');
 });

@@ -70,7 +70,7 @@ export function createSite({ config, app, now, shop = SHOP }) {
   <address>${esc(a.street)}<br>${esc(a.city)}, ${esc(a.state)} ${esc(a.zip)}</address>
   <p>${esc(shop.directions)}</p>
   <p><a href="${tel(shop)}">${esc(shop.phone)}</a> · <a href="mailto:${esc(shop.email)}">${esc(shop.email)}</a></p>
-  <h3>Where we serve</h3><ul class="plain">${shop.serviceAreas.map(([s, t]) => `<li><span><strong>${esc(s)}</strong><small>${esc(t)}</small></span></li>`).join('')}</ul></section>
+  <h3>${shop.delivers ? 'Where we serve and deliver' : 'Where we serve'}</h3>${shop.delivers ? '<p>We deliver parts around our service area. Ask when you call, or choose delivery when you order online.</p>' : ''}<ul class="plain">${shop.serviceAreas.map(([s, t]) => `<li><span><strong>${esc(s)}</strong><small>${esc(t)}</small></span></li>`).join('')}</ul></section>
 
 <section class="panel stack" id="story"><h2>Our story</h2><ul class="plain">${shop.history.map(([y, t]) => `<li><span><strong>${esc(y)}</strong> ${esc(t)}</span></li>`).join('')}</ul><p>${esc(shop.historyNote)}</p></section>
 
