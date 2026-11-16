@@ -43,7 +43,7 @@ const IMPORT_BODY = 2 * 1024 * 1024; // a pasted customer list, percent-encoded,
 
 export async function createWeb({ db, config, now = Date.now, log = createLogger({ requests: config.logRequests }), sendPush, fetcher, ai }) {
   const store = sqliteStore(db);
-  const staff = createStaff({ store, roles: ROLES, name: 'call-store', secure: config.production });
+  const staff = createStaff({ store, roles: ROLES, invites: { manager: ['staff'] }, name: 'call-store', secure: config.production });
   const notices = createNotices({ secret: config.secret });
   const zubra = createZubra({ components: join(here, 'components'), production: config.production });
   const clients = new Set();
