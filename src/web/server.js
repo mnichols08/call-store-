@@ -189,7 +189,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
         return false;
       }
     }
-    if (!/^[a-z0-9-]+\.(css|js|webp)$/.test(name)) return false;
+    if (!/^(islands\/)?[a-z0-9-]+\.(css|js|webp)$/.test(name)) return false;
     try {
       const data = await readFile(join(PUBLIC, name));
       res.writeHead(200, { 'content-type': TYPES[extname(name)], 'cache-control': config.production ? 'public, max-age=3600' : 'no-cache', 'x-content-type-options': 'nosniff' });
@@ -221,7 +221,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const nonce = randomBytes(16).toString('base64');
     res.cspNonce = nonce;
     // Only the scan page may run WebAssembly (the QR reader); everything else keeps the strict policy.
-    res.csp = `default-src 'self'; script-src 'self' 'nonce-${nonce}'${url.pathname === '/scan' ? " 'wasm-unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`;
+    res.csp = `default-src 'self'; script-src 'self' 'nonce-${nonce}'${url.pathname === '/scan' ? " 'wasm-unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`;
     res.setHeader('x-content-type-options', 'nosniff');
     res.setHeader('referrer-policy', 'same-origin');
     res.setHeader('x-frame-options', 'DENY');
@@ -266,7 +266,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
       }
     }
 
-    const customerLink = /^\/d\/([A-Za-z0-9_-]{20,80})(?:\/(details|photo))?\/?$/.exec(url.pathname);
+    const customerLink = /^\/d\/([A-Za-z0-9_-]{20,80})(?:\/(details|photo|assist))?\/?$/.exec(url.pathname);
     if (customerLink) return customer.handle(req, res, url, { token: customerLink[1], action: customerLink[2], posting, form, raw, nonce, ip: clientAddress(req, { proxies: config.proxies }) });
 
     if (url.pathname === '/portal' || url.pathname.startsWith('/portal/') || url.pathname.startsWith('/join/') || url.pathname.startsWith('/hello/') || url.pathname.startsWith('/badge/')) {

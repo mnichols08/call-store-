@@ -187,3 +187,58 @@ test('measurements find parts, and what staff confirm is remembered for any unit
   assert.equal((await a.parts.find(bob, { term: 'bearing' })).error, 'vehicle', 'a bare name still needs a vehicle');
   void app; void call;
 });
+
+// ---- the part helper: the AI reads photos and only suggests
+import { cleanPartReading } from '../src/domain/measure.js';
+
+test('a reading from the AI keeps only a real type and values read off the part', () => {
+  const r = cleanPartReading({
+    type: 'bearing', confidence: 'high', unit: 'mm', markings: ['6205-2RS', '  ', 'x'.repeat(100)],
+    values: { id: { value: '25', source: 'printed' }, od: { value: '52', source: 'estimate' }, width: { value: '99999', source: 'printed' }, bogus: { value: '1', source: 'printed' } },
+    questions: ['Measure the hole'], note: 'n',
+  });
+  assert.equal(r.type, 'bearing');
+  assert.deepEqual(r.values, { id: '25' }, 'an estimate, an impossible size and a field that does not exist are dropped');
+  assert.equal(r.markings.length, 2);
+  assert.ok(r.markings[1].length <= 40);
+  assert.equal(cleanPartReading({ type: 'rocket-engine', values: { id: { value: '1', source: 'printed' } } }).type, '');
+  assert.deepEqual(cleanPartReading({ type: 'rocket-engine' }).values, {});
+  assert.equal(cleanPartReading(null).confidence, 'low');
+  assert.equal(cleanPartReading({ type: 'hose', unit: 'in', values: { id: { value: '1/2', source: 'printed' } } }).values.id, '1/2');
+});
+
+test('the helper looks only at a call’s own photos, only once there are some, and only when the AI is on', async () => {
+  const sent = [];
+  const ai = { enabled: true, suggest: async () => ({ candidates: [] }), readSheet: async () => ({}), readPart: async ({ images }) => { sent.push(images); return { reading: { type: 'seal', confidence: 'medium', markings: ['TC 35x47x7'], values: { shaft: { value: '35', source: 'printed' } } }, usage: { input: 10, output: 5 } }; } };
+  const { app, clock } = freshApp({ ai });
+  const call = app.calls.create(ann).id;
+  const link = app.details.createLink(ann, call);
+  assert.equal((await app.details.assistViaLink(link.token)).error, 'no-photo');
+  assert.equal(app.details.customerPhoto(link.token, jpeg()).ok, true);
+  const r = await app.details.assistViaLink(link.token);
+  assert.equal(r.ok, true);
+  assert.equal(r.suggestion.type, 'seal');
+  assert.deepEqual(r.suggestion.values, { shaft: '35' });
+  assert.equal(sent.length, 1);
+  assert.deepEqual(Object.keys(sent[0][0]).sort(), ['bytes', 'mime'], 'only the picture goes out, nothing about the call or the customer');
+  assert.equal(app.details.get(ann, call).details, null, 'nothing is saved by a suggestion');
+  for (let i = 0; i < 5; i += 1) await app.details.assist(call);
+  assert.equal((await app.details.assist(call)).error, 'slow-down', 'six looks an hour per call');
+  clock.t += 3_700_000;
+  assert.equal((await app.details.assist(call)).ok, true);
+  const off = freshApp({ ai: { enabled: false } });
+  const c2 = off.app.calls.create(ann).id;
+  assert.equal((await off.app.details.assist(c2)).error, 'off');
+  assert.equal((await app.details.assistViaLink('nope-not-a-link-at-all-xx')).error, 'link');
+});
+
+test('an AI failure is reported in words and keeps the call usable', async () => {
+  const { AiError } = await import('../src/infra/ai.js');
+  const ai = { enabled: true, suggest: async () => ({}), readSheet: async () => ({}), readPart: async () => { throw new AiError('busy', 'x'); } };
+  const { app } = freshApp({ ai });
+  const call = app.calls.create(ann).id;
+  app.details.addPhoto(ann, call, jpeg());
+  const r = await app.details.assist(call);
+  assert.equal(r.error, 'ai-busy');
+  assert.match(r.message, /try again/i);
+});

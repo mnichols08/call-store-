@@ -22,6 +22,7 @@ const VIEWS = [
 ];
 
 const EVENT_WORDS = {
+  assist: () => 'The customer asked the AI to look at their photos',
   details: (d) => `Measurements ${d.complete ? 'filled in' : 'started'}`,
   portal: () => 'You updated the customer',
   photo: (d) => (d.source === 'customer' ? 'The customer sent a photo' : 'A photo was added'),

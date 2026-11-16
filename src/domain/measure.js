@@ -53,6 +53,14 @@ export function parseNumber(text) {
   return /^\d*\.?\d+$/.test(t) ? Number(t) : null;
 }
 const round = (n, places = 1) => Number(n.toFixed(places));
+/** Whether what was typed for a measuring field can be right: '' (nothing typed), 'number' (it can't), or null (fine). The form and the server use the same rule. */
+export function fieldProblem(f, text, unit) {
+  const t = clean(text);
+  if (!t || f.kind === 'text' || f.kind === CHOICE) return null;
+  const n = parseNumber(t);
+  const limit = f.kind === 'count' ? 40 : unit === 'in' ? 200 : 5000;
+  return n == null || n <= 0 || n > limit ? 'number' : null;
+}
 
 /**
  * Read a filled-in form. `get(name)` returns what was typed for a field. Returns the details to
@@ -75,8 +83,7 @@ export function readMeasurements(type, unit, get) {
       continue;
     }
     const n = parseNumber(text);
-    const limit = f.kind === 'count' ? 40 : u === 'in' ? 200 : 5000;
-    if (n == null || n <= 0 || n > limit) { errors.push(f.key); continue; }
+    if (fieldProblem(f, text, u)) { errors.push(f.key); continue; }
     values[f.key] = f.kind === 'count' ? { text, n: Math.round(n) } : { text, n, mm: round(u === 'in' ? n * MM_PER_INCH : n, 1) };
   }
   return { ok: errors.length === 0, type, unit: u, values, errors };
@@ -102,4 +109,30 @@ export function describeMeasurements(type, unit, values) {
   const spec = PART_TYPES[type];
   if (!spec) return '';
   return spec.fields.filter((f) => values?.[f.key]).map((f) => `${f.name ?? f.label.replace(/ \(.*\)$/, '')} ${values[f.key].text}${f.kind === LENGTH ? ` ${unit}` : ''}`).join(', ');
+}
+
+/**
+ * What the AI said about photos of a part, made safe. The AI only suggests: a type that exists, and
+ * values for that type's own fields that were read off the part (a stamped size, a printed number),
+ * never judged by eye. Anything else is dropped. The customer still checks every value.
+ */
+export function cleanPartReading(raw) {
+  const type = Object.hasOwn(PART_TYPES, raw?.type) ? raw.type : '';
+  const spec = type ? PART_TYPES[type] : null;
+  const unit = raw?.unit === 'in' ? 'in' : 'mm';
+  const values = {};
+  if (spec) {
+    const given = raw?.values && typeof raw.values === 'object' ? raw.values : {};
+    for (const f of spec.fields) {
+      const entry = given[f.key];
+      const text = clean(typeof entry === 'object' && entry ? entry.value : entry).slice(0, 40);
+      if (!text || (typeof entry === 'object' && entry && entry.source !== 'printed')) continue;
+      if (f.kind === 'text') { values[f.key] = text; continue; }
+      if (f.kind === CHOICE) { const o = f.options.find((x) => x.toLowerCase() === text.toLowerCase()); if (o) values[f.key] = o; continue; }
+      if (parseNumber(text) != null && !fieldProblem(f, text, unit)) values[f.key] = text;
+    }
+  }
+  const list = (v, n, max) => (Array.isArray(v) ? v.map((x) => clean(x).slice(0, max)).filter(Boolean).slice(0, n) : []);
+  const confidence = ['low', 'medium', 'high'].includes(raw?.confidence) ? raw.confidence : 'low';
+  return { type, label: spec?.label ?? '', confidence, unit, values, markings: list(raw?.markings, 6, 40), questions: list(raw?.questions, 4, 120), note: clean(raw?.note).slice(0, 200) };
 }

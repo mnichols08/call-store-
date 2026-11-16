@@ -3,13 +3,14 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { can } from '../domain/permissions.js';
 import { clip } from '../domain/text.js';
-import { PART_TYPES, describeMeasurements, measureKey, readMeasurements } from '../domain/measure.js';
+import { PART_TYPES, cleanPartReading, describeMeasurements, measureKey, readMeasurements } from '../domain/measure.js';
+import { AiError, aiWords } from '../infra/ai.js';
 import { sniff, stripMetadata } from '../domain/image.js';
 
 export const LIMITS = Object.freeze({ photos: 8, photoBytes: 6 * 1024 * 1024, linkHours: 48, note: 400 });
 const hash = (token) => createHash('sha256').update(token).digest('hex');
 
-export function createDetails({ db, audit, now, changed, nudges }) {
+export function createDetails({ db, audit, now, changed, nudges, ai, log }) {
   const deny = (who, permission) => (can(who, permission) ? null : { error: 'forbidden' });
   const call = (id) => db.prepare('SELECT * FROM calls WHERE id = ?').get(id);
   const open = (c) => c && !['resolved', 'closed'].includes(c.status);
@@ -164,6 +165,36 @@ export function createDetails({ db, audit, now, changed, nudges }) {
         if (!recent) tellHolder(v.call, 'Customer sent a photo');
       }
       return r;
+    },
+
+    /** Whether the helper can look at photos at all. */
+    assistEnabled: () => Boolean(ai?.enabled && ai.readPart),
+    /**
+     * The AI looks at the photos already on a call (the newest three) and suggests what the part is.
+     * Nothing is saved: the customer checks it and sends the details themselves. Limited per call and per day.
+     */
+    async assist(callId) {
+      const c = call(callId);
+      if (!open(c)) return { error: 'link-closed' };
+      if (!this.assistEnabled()) return { error: 'off', message: aiWords('off') };
+      const used = (since, where = '') => db.prepare(`SELECT COUNT(*) AS n FROM call_events WHERE type = 'assist' AND at > ? ${where}`).get(since, ...(where ? [callId] : [])).n;
+      if (used(now() - 3_600_000, 'AND call_id = ?') >= 6 || used(now() - 86_400_000) >= 300) return { error: 'slow-down', message: 'That’s enough looking for now. Fill in what you know and send it.' };
+      const rows = db.prepare('SELECT mime, bytes FROM call_photos WHERE call_id = ? ORDER BY id DESC LIMIT 3').all(callId);
+      if (!rows.length) return { error: 'no-photo', message: 'Add a photo first, then I can take a look.' };
+      let result;
+      try {
+        result = await ai.readPart({ images: rows.map((r) => ({ mime: r.mime, bytes: Buffer.from(r.bytes) })) });
+      } catch (error) {
+        if (error instanceof AiError) return { error: `ai-${error.code}`, message: aiWords(error.code) };
+        log?.warn('part read failed', { message: error?.message });
+        return { error: 'ai-failed', message: aiWords('failed') };
+      }
+      event(callId, 'customer', 'assist', { input: result.usage?.input ?? 0, output: result.usage?.output ?? 0 });
+      return { ok: true, suggestion: cleanPartReading(result.reading) };
+    },
+    assistViaLink(token) {
+      const v = this.viaLink(token);
+      return v.error ? v : this.assist(v.call.id);
     },
 
     /** For the portal: what a request holds, and a photo's bytes, once the caller has checked the account owns the call. */
