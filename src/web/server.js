@@ -60,6 +60,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     fetcher,
     ai: ai ?? { apiKey: config.ai?.apiKey, model: config.ai?.model, webSearch: config.ai?.webSearch, domains: config.ai?.domains },
     mail: { provider: config.mail?.provider, apiKey: config.mail?.apiKey, from: config.mail?.from },
+    sms: { provider: config.sms?.provider, apiKey: config.sms?.apiKey, account: config.sms?.account, sender: config.sms?.sender },
     business: config.business,
     zone: config.zone,
     limits: { hourly: config.ai?.hourly ?? 30, daily: config.ai?.daily ?? 200 },

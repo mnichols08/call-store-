@@ -159,6 +159,6 @@ export function portalRoutes(router) {
     if (r.error) return ctx.forbidden();
     return ctx.send('Outbox', `<div class="head"><h1>Outbox</h1></div>
       <section class="panel stack"><p>${r.live ? 'Email is on. Messages that failed to send are kept here.' : 'Email isn’t set up, so messages to customers are kept here instead of being sent. Set <code>MAIL_PROVIDER</code>, <code>RESEND_API_KEY</code> and <code>MAIL_FROM</code> to send them.'}</p></section>
-      <section class="panel">${r.messages.length ? `<table class="grid compact"><thead><tr><th>When</th><th>To</th><th>Subject</th></tr></thead><tbody>${r.messages.map((m) => `<tr><td class="muted">${esc(when(m.created_at, ctx.config.zone))}</td><td>${esc(m.to_email)}</td><td><details><summary>${esc(m.subject)}</summary><pre class="wrap">${esc(m.body)}</pre></details></td></tr>`).join('')}</tbody></table>` : '<p class="muted">Empty.</p>'}</section>`, { active: 'outbox' });
+      <section class="panel">${r.messages.length ? `<table class="grid compact"><thead><tr><th>When</th><th>To</th><th>Subject</th></tr></thead><tbody>${r.messages.map((m) => `<tr><td class="muted">${esc(when(m.created_at, ctx.config.zone))}</td><td>${m.channel === 'text' ? 'Text to ' : ''}${esc(m.to_email)}</td><td><details><summary>${esc(m.subject)}</summary><pre class="wrap">${esc(m.body)}</pre></details></td></tr>`).join('')}</tbody></table>` : '<p class="muted">Empty.</p>'}</section>`, { active: 'outbox' });
   });
 }
