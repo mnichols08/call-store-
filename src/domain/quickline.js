@@ -164,6 +164,30 @@ for (const [canonical, names] of Object.entries(PARTS)) {
 }
 const SIDE_ORDER = ['front', 'rear', 'left', 'right', 'upper', 'lower', 'inner', 'outer'];
 
+// ---------------------------------------------------------------- paint
+// A line is paint when it says "paint", names a paint brand or a paint type. "1qt d3 valspar single
+// stage", "paint WA8555", "nason basecoat clearcoat 040 2 qts". What's left is the paint code.
+const PAINT_TYPES = [
+  [/^(touch ?up|touch-up|touchup)$/, 'Touch-up', true],
+  [/^(spray cans?|rattle cans?|aerosol)$/, 'Spray can', true],
+  [/^(single stage|singlestage)$/, 'Single stage', true],
+  [/^(base ?coat|clear ?coat|basecoat|clearcoat|bc\/cc|base\/clear|basecoat\/clearcoat|base clear)$/, 'Basecoat/clearcoat', true],
+  // Short forms count only on a line that is already paint.
+  [/^ss$/, 'Single stage', false],
+  [/^(bc|cc)$/, 'Basecoat/clearcoat', false],
+  [/^spray$/, 'Spray can', false],
+];
+const PAINT_BRANDS = { nason: 'Nason', valspar: 'Valspar' };
+const PAINT_UNITS = { oz: 'oz', ounce: 'oz', ounces: 'oz', qt: 'qt', qts: 'qt', quart: 'qt', quarts: 'qt', gal: 'gal', gals: 'gal', gallon: 'gal', gallons: 'gal' };
+const PAINT_WORDS = new Set(['paint', 'paints', 'code', 'color', 'colour', 'of', 'can', 'cans', 'coat']);
+const paintType = (t, strongOnly) => PAINT_TYPES.find(([re, , strong]) => (strong || !strongOnly) && re.test(t))?.[1] ?? '';
+const amountOf = (text) => {
+  if (text === 'half') return 0.5;
+  const m = /^(\d+(?:\.\d+)?)$|^(\d+)\/(\d+)$/.exec(text);
+  if (!m) return null;
+  return m[1] ? Number(m[1]) : Number(m[2]) / Number(m[3]);
+};
+
 // ---------------------------------------------------------------- what the vehicles are called
 const MAKE_BY_ALIAS = new Map(); // squashed alias → make
 const MODELS = new Map(); // squashed alias → [{ make, model, weak }]
@@ -214,6 +238,44 @@ export function parseLine(text, { now = new Date() } = {}) {
 
   const vehicle = result.vehicle;
   const say = (token, role) => { token.role = role; };
+
+  // ---- a VIN: 17 letters and digits, never I, O or Q ("vin" before it is just a label)
+  for (const k of toks) {
+    if (!/^[a-hj-npr-z0-9]{17}$/.test(k.t) || !/\d/.test(k.t) || !/[a-z]/.test(k.t)) continue;
+    result.vin = k.t.toUpperCase();
+    say(k, 'vin');
+    for (const label of toks) if (!label.role && label.t === 'vin') say(label, 'skip');
+    break;
+  }
+
+  // ---- paint: "paint", a brand or a type makes it a paint line; then the amount, and the code is what's left
+  for (let i = 0; i < toks.length - 1; i += 1) {
+    const two = `${toks[i].t} ${toks[i + 1].t}`;
+    if (paintType(two, true)) toks.splice(i, 2, { word: `${toks[i].word} ${toks[i + 1].word}`, t: two, role: '' });
+  }
+  const isPaint = toks.some((k) => /^paints?$/.test(k.t) || PAINT_BRANDS[k.t] || paintType(k.t, true));
+  let paint = null;
+  if (isPaint) {
+    paint = { code: '', type: '', brand: '', amount: null, unit: '' };
+    for (let i = 0; i < toks.length; i += 1) {
+      const k = toks[i];
+      if (k.role) continue;
+      const type = paintType(k.t, false);
+      if (type) { if (!paint.type) paint.type = type; say(k, 'paint'); continue; }
+      if (PAINT_BRANDS[k.t]) { paint.brand = PAINT_BRANDS[k.t]; say(k, 'paint'); continue; }
+      // "1qt", "8oz", "2 qts", "1 gallon", "half gallon", "1/2 gal"
+      const glued = /^(\d+(?:\.\d+)?|\d+\/\d+)([a-z]+)$/.exec(k.t);
+      if (glued && PAINT_UNITS[glued[2]] && paint.amount === null) { paint.amount = amountOf(glued[1]); paint.unit = PAINT_UNITS[glued[2]]; say(k, 'amount'); continue; }
+      const next = toks[i + 1];
+      if (next && !next.role && PAINT_UNITS[next.t] && amountOf(k.t) !== null && paint.amount === null) { paint.amount = amountOf(k.t); paint.unit = PAINT_UNITS[next.t]; say(k, 'amount'); say(next, 'amount'); i += 1; continue; }
+      if (PAINT_WORDS.has(k.t)) say(k, 'skip');
+    }
+    // "2 spray cans": a count of cans
+    if (paint.type === 'Spray can') {
+      const count = toks.find((k) => !k.role && /^\d{1,2}$/.test(k.t) && Number(k.t) > 0);
+      if (count) { result.qty = Number(count.t); say(count, 'qty'); }
+    }
+  }
 
   // ---- weight class, drivetrain, engine
   let weight = '';
@@ -316,6 +378,15 @@ export function parseLine(text, { now = new Date() } = {}) {
     }
   }
 
+  // ---- a paint line's code is what's left: "d3", "WA8555", "040"
+  if (paint) {
+    const code = toks.filter((k) => !k.role && !FILLER.has(k.t) && /^[a-z0-9-]{1,10}$/.test(k.t));
+    paint.code = code.map((k) => k.t.toUpperCase()).join(' ');
+    for (const k of code) say(k, 'code');
+    for (const k of toks) if (!k.role) say(k, 'skip');
+    result.paint = paint;
+  }
+
   // ---- part numbers: letters and digits together, or a long number
   for (const k of toks) {
     if (k.role) continue;
@@ -366,6 +437,7 @@ export function parseLine(text, { now = new Date() } = {}) {
   result.part = joined || position ? label.replace(/ \(what\?\)$/, '') : '';
   result.position = position;
   result.partIncomplete = !joined && Boolean(position);
+  if (paint) result.part = 'Paint';
 
   // ---- the vehicle, assembled
   // Ram became its own make with the 2011 model year; before that it was a Dodge.
@@ -378,9 +450,9 @@ export function parseLine(text, { now = new Date() } = {}) {
   if (model) vehicle.model = model;
   const engine = [liters, cylinders, ...extras].filter(Boolean).join(' ');
   if (engine) vehicle.engine = engine;
-  const hasVehicle = Object.keys(vehicle).length > 0;
+  const hasVehicle = Object.keys(vehicle).length > 0 || Boolean(result.vin);
   const hasPart = Boolean(result.part || result.partNumbers.length || result.partIncomplete);
-  result.kind = hasVehicle && hasPart ? 'both' : hasVehicle ? 'vehicle' : hasPart ? 'part' : 'empty';
+  result.kind = paint ? 'paint' : hasVehicle && hasPart ? 'both' : hasVehicle ? 'vehicle' : hasPart ? 'part' : 'empty';
   result.tokens = toks.map((k) => ({ text: k.word, role: k.role || 'part' }));
   return result;
 }
@@ -400,8 +472,19 @@ export function carryVehicle(current, parsed) {
   return { ...(current ?? {}) };
 }
 
+/** "Paint D3 · Valspar single stage · 1 qt" */
+export function sayPaint(paint) {
+  const kind = [paint.brand, paint.brand ? paint.type.toLowerCase() : paint.type.charAt(0).toLowerCase() + paint.type.slice(1)].filter(Boolean).join(' ');
+  const amount = paint.amount !== null && paint.amount !== undefined ? `${paint.amount} ${paint.unit}` : '';
+  return [`Paint ${paint.code || '(code?)'}`, kind, amount].filter(Boolean).join(' · ');
+}
+
 /** The one-line summary of a parsed line, for the read-back. */
 export function sayLine(parsed, vehicle) {
+  if (parsed.paint) {
+    const on = sayVehicle(vehicle);
+    return `${parsed.qty > 1 ? `${parsed.qty} × ` : ''}${sayPaint(parsed.paint)}${on ? ` for ${on}` : ''}`;
+  }
   const bits = [];
   if (parsed.qty && parsed.qty > 1) bits.push(`${parsed.qty} ×`);
   bits.push(parsed.part || (parsed.partNumbers.length ? `Part ${parsed.partNumbers.join(', ')}` : ''));
