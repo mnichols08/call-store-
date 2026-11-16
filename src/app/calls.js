@@ -267,7 +267,7 @@ export function createCalls({ db, audit, now, changed }) {
       const text = clip(String(q ?? '').trim(), 80);
       const params = { me: who.email, q: like(text), none: text === '' ? 1 : 0, limit };
       const rows = db.prepare(`SELECT c.*, cu.name AS customer_name FROM calls c LEFT JOIN customers cu ON cu.id = c.customer_id
-        WHERE ${where} AND :me IS NOT NULL AND (:none = 1 OR c.request LIKE :q ESCAPE '\\' OR c.part_numbers LIKE :q ESCAPE '\\' OR c.caller_name LIKE :q ESCAPE '\\'
+        WHERE ${where} AND :me IS NOT NULL AND (:none = 1 OR c.request LIKE :q ESCAPE '\\' OR c.lines_text LIKE :q ESCAPE '\\' OR c.part_numbers LIKE :q ESCAPE '\\' OR c.caller_name LIKE :q ESCAPE '\\'
           OR c.caller_phone LIKE :q ESCAPE '\\' OR cu.name LIKE :q ESCAPE '\\' OR c.notes LIKE :q ESCAPE '\\')
         ORDER BY CASE c.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END, ${view === 'done' ? 'c.closed_at DESC' : 'c.created_at ASC'} LIMIT :limit`).all(params);
       return { ok: true, calls: rows.map((r) => ({ ...inflate(r), ...summarize(inflate(r)) })) };

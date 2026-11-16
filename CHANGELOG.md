@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased: quick entry
+- Call screen: type what the caller wants the way you say it (`90 eclipse front brakes`, `front struts for 2000 tacoma`, `universal joint for 2007 chevy 3/4 ton`) and press Enter. Each Enter is one line; following lines stay on that vehicle until a new one is typed (`07 cherokee 4.0`). Fixed rules, no AI, with a live read-back. The call's vehicle and queue title follow the lines. See docs/quick-entry.md.
+
 ## Unreleased: part helper
 - Customers describe a part on their private link or portal request with a guided page (a small Svelte island, the first build step in the project): photos with upload status, an optional AI look that suggests the kind of part and reads printed or stamped numbers, and size fields with live checking and inch/mm conversion. The AI only suggests; sizes it did not read off the part are dropped, and the customer checks everything before sending. See docs/part-helper.md.
 

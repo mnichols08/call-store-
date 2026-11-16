@@ -319,3 +319,30 @@ test('text cut in the middle of an emoji, or sent with a stray surrogate half, n
   assert.equal((await olive('/items')).status, 200);
   assert.equal((await olive('/calls?q=' + encodeURIComponent('x'.repeat(79) + '🙂'))).status, 200);
 });
+
+test('quick entry: lines are added over JSON and by plain form post, the page keeps the vehicle, and text is escaped', async () => {
+  const olive = await signedIn();
+  const path = (await olive('/calls', { method: 'POST', form: {} })).location;
+  const first = await olive(`${path}/lines`, { method: 'POST', json: true, form: { text: '90 eclipse front brakes' } });
+  assert.equal(first.status, 200);
+  assert.equal(first.json().lines[0].vehicle.model, 'Eclipse');
+  const second = await olive(`${path}/lines`, { method: 'POST', json: true, form: { text: 'rear brakes' } });
+  assert.equal(second.json().lines[1].vehicle.model, 'Eclipse');
+  assert.ok(second.json().revision > first.json().revision);
+
+  const plain = await olive(`${path}/lines`, { method: 'POST', form: { text: '<script>alert(1)</script> wheel bearing' } });
+  assert.equal(plain.status, 303);
+  const page = (await olive(path)).text;
+  assert.match(page, /id="quick-entry"/);
+  assert.match(page, /\/assets\/islands\/quick-entry\.js/);
+  assert.doesNotMatch(page.replace(/data-config="[^"]*"/g, ''), /<script>alert\(1\)/);
+  assert.equal((await olive(`${path}/lines`, { method: 'POST', json: true, form: { text: '  ' } })).status, 409);
+  assert.equal((await olive(`${path.replace(/\d+$/, '99999')}/lines`, { method: 'POST', json: true, form: { text: 'oil filter' } })).status, 404);
+  assert.equal((await olive('/assets/islands/quick-entry.js')).status, 200);
+
+  const id = second.json().lines[0].id;
+  const removed = await olive(`${path}/lines`, { method: 'POST', json: true, form: { action: 'remove', line: String(id) } });
+  assert.equal(removed.json().lines.length, 2);
+  const done = await olive(`${path}/lines`, { method: 'POST', json: true, form: { action: 'done', line: String(removed.json().lines[0].id), done: '1' } });
+  assert.equal(done.json().lines[0].done, true);
+});

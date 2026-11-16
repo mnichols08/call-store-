@@ -10,6 +10,7 @@ let lastSave = 0;
 let timer;
 let conflict = false;
 
+window.callFlush = () => (dirty ? save() : Promise.resolve());
 window.callBusy = () => dirty || saving || Date.now() - lastSave < 2000;
 
 function say(text, bad = false) {

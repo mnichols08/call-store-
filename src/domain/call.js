@@ -97,7 +97,7 @@ export function summarize(call) {
   const app = call.application ?? {};
   const vehicle = [app.year, app.make, app.model, app.engine].filter(Boolean).join(' ');
   return {
-    title: call.request || call.part_numbers || vehicle || app.freeform || (call.caller_name ? `Call from ${call.caller_name}` : 'New call'),
+    title: call.request || call.lines_text || call.part_numbers || vehicle || app.freeform || (call.caller_name ? `Call from ${call.caller_name}` : 'New call'),
     application: vehicle || app.freeform || '',
   };
 }
