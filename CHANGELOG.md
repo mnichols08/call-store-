@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: backups and support
+- The app now backs itself up: a copy of the database at start and every 24 hours, newest 14 kept (`BACKUP_DIR`, `BACKUP_EVERY_HOURS`).
+- New `docs/support.md` (what to do when something breaks, handing it over) and `docs/owner-sheet.md` (a one-page "if it stops working" sheet for the owner).
+
 ## Unreleased: brand and search
 - The shop's own logo replaces the placeholder badge on the public page and the customer portal (`public/logo.webp`), with favicon, home-screen icons and a web app manifest.
 - Sharing the page now shows a 1200×630 preview image (`public/og-image.jpg`); Open Graph and Twitter card tags added.
