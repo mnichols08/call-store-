@@ -346,3 +346,20 @@ test('quick entry: lines are added over JSON and by plain form post, the page ke
   const done = await olive(`${path}/lines`, { method: 'POST', json: true, form: { action: 'done', line: String(removed.json().lines[0].id), done: '1' } });
   assert.equal(done.json().lines[0].done, true);
 });
+
+test('reports: the page carries its data for the island, and /reports.json answers staff with permission only', async () => {
+  const olive = await signedIn();
+  const page = (await olive('/reports?days=7')).text;
+  assert.match(page, /id="reports" data-config=/);
+  assert.match(page, /\/assets\/islands\/reports\.js/);
+  const data = (await olive('/reports.json?days=7', { json: true })).json();
+  assert.equal(data.ok, true);
+  assert.equal(data.days, 7);
+  assert.ok(data.now.rows.length >= 7);
+  assert.ok(data.before.rows.length >= 7);
+  assert.equal(data.targetMinutes, 5);
+  assert.equal((await olive('/reports.json?days=9999', { json: true })).json().days, 14, 'an odd range falls back');
+  const anon = browser();
+  assert.equal((await anon('/reports.json', { json: true })).status, 401);
+  assert.equal((await olive('/assets/islands/reports.js')).status, 200);
+});
