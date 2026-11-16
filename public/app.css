@@ -404,3 +404,7 @@ label.inline { display: inline-flex; align-items: center; gap: 0.4rem; }
 #review-form .orders td:nth-child(4) input { min-width: 11rem; }
 #review-form .orders td:nth-child(5) input { min-width: 11rem; }
 #review-form .orders td:nth-child(6) select { min-width: 9rem; }
+
+/* Camera features are for phones: a small touch screen. Desktops (webcams) get a code to carry the page to a phone. */
+@media not ((max-width: 48rem) and (pointer: coarse)) { .phone-only { display: none !important; } }
+@media (max-width: 48rem) and (pointer: coarse) { .desktop-only { display: none !important; } }

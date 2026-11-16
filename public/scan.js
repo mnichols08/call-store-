@@ -109,7 +109,9 @@ async function tick() {
   timer = setTimeout(tick, 180);
 }
 
-if (qr) {
+// The camera is for phones; a desktop's webcam isn't offered (the page shows a code to open it on a phone).
+const phone = matchMedia('(max-width: 48rem) and (pointer: coarse)').matches;
+if (qr && phone) {
   photo.closest('label').hidden = false;
   if (navigator.mediaDevices?.getUserMedia) start.hidden = false;
   start.addEventListener('click', async () => {
