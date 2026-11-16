@@ -5,7 +5,7 @@ Copied in, not edited. A fix goes upstream and is re-copied; this file records w
 | What | Where from | Commit |
 | --- | --- | --- |
 | `vendor/kit/store`, `notice`, `reports`, `staff/pages.js` | github.com/potomac-solutions/kit, `modules/` (version 0.8.1) | `fd196d83645005f45b6bd7b4c07b35a2afd91ac5` |
-| `vendor/kit/staff/index.js` | github.com/potomac-solutions/kit, branch `feat/staff-invite-rules` (kit PR #21: roles other than owner can invite). Re-copy from `main` once merged. | `19878776007910d48c22de13bd8c9f632123fa2e` |
+| `vendor/kit/staff/index.js` | github.com/potomac-solutions/kit, branch `feat/staff-phone-handoff` (kit PR #22, on top of #21: invite rules and phone hand-off). Re-copy from `main` once both merge. | `d8300de8a4dabf8dcc9571b801dbc36b634d550e` |
 | `src/web/components/{text-field,select-field,action-button,status-badge,alert-banner,empty-state,stat-card}.zb` | github.com/journey-to-code-org/zubra-ui, `components/` | `ba5737ea04d6079914283f94582172b1bdc2447d` |
 | `public/zubra-ui-theme.css` | github.com/journey-to-code-org/zubra-ui, `themes/default.css` | `ba5737ea04d6079914283f94582172b1bdc2447d` |
 
