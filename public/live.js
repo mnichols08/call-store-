@@ -36,6 +36,7 @@ new EventSource('/events').addEventListener('message', (message) => {
     if (event.type === 'watch' && String(event.id) === callId) { window.refreshWatchers?.(); return; }
     if (event.type !== 'call' || String(event.id) !== callId) return;
     if (['parts', 'lines'].includes(event.why) && event.by === callForm.dataset.me) return; // my own search, already on my page
+    if (event.why === 'lines' && event.by === 'finder') { window.refreshLines?.(); return; } // part numbers arrived for a line
     if (window.callBusy?.()) return;
     banner();
     return;

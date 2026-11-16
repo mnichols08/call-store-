@@ -1,5 +1,6 @@
-// Vehicle lookup and the parts finder, on a call. Everything works as plain forms; public/vehicle.js
-// only makes the pickers quicker. The shop's saved answers always come first.
+// The parts finder on a call, the customer's vehicles on file, and the small vehicle endpoints.
+// The vehicle itself comes from quick entry (a VIN typed there is decoded). Everything works as plain
+// forms. The shop's saved answers always come first.
 import { esc, ago } from '../html.js';
 import { answerList, say } from '../ui.js';
 import { bounded } from '../stream.js';
@@ -42,18 +43,6 @@ export function vehicleRoutes(router) {
     return ctx.json(await ctx.app.vehicles.options(ctx.who, Number(q.get('year')), q.get('make') ?? '', q.get('model') ?? ''));
   });
 
-  // Read a VIN and put the vehicle on the call. The VIN is kept on the call, and on the customer if there is one.
-  router.post('/calls/:id/vehicle/vin', async (ctx) => {
-    const id = Number(ctx.params.id);
-    const back = `/calls/${id}#vehicle`;
-    const result = await ctx.app.vehicles.decode(ctx.who, ctx.form.get('vin') ?? '');
-    if (result.error) return ctx.redirect(back, { problem: say(result.error) });
-    const { spec, warnings } = result;
-    const applied = applyToCall(ctx, id, spec, { vin: spec.vin });
-    if (applied.error) return ctx.redirect(back, { problem: say(applied.error) });
-    return ctx.redirect(back, { done: `${describeVehicle(spec)}${spec.trim ? ` (${spec.trim})` : ''}.${warnings.length ? ` ${warnings.join(' ')}` : ''}${saved(ctx, id, spec) ? ' Saved to the customer.' : ''}` });
-  });
-
   // Use a vehicle picked by hand, found by "2015 silverado", or saved on the customer.
   router.post('/calls/:id/vehicle/use', (ctx) => {
     const id = Number(ctx.params.id);
@@ -76,8 +65,6 @@ export function vehicleRoutes(router) {
     return ctx.redirect(back, { done: `${describeVehicle(spec)}.${kept ? ' Saved to the customer.' : ''}` });
   });
 
-  // Look for the closest match to what was typed. Shown as a list on the call page.
-  router.post('/calls/:id/vehicle/match', (ctx) => ctx.redirect(`/calls/${Number(ctx.params.id)}?${new URLSearchParams({ vq: ctx.form.get('vq') ?? '', vy: ctx.form.get('vy') ?? '' })}#vehicle`));
 
   router.post('/customers/:cid/vehicles/:id/remove', (ctx) => {
     const r = ctx.app.vehicles.removeFor(ctx.who, Number(ctx.params.id));
@@ -187,48 +174,16 @@ export function answerCard(callId, a, closed) {
 }
 
 /** The vehicle and parts panels on the call page. Returns HTML. */
+/** The customer's vehicles on file, to put one on the call without retyping it. */
 export function vehiclePanels(ctx, got, closed) {
   const { call, customer } = got;
-  const callId = call.id;
-  const a = call.application ?? {};
-  const q = ctx.url.searchParams;
-  const vq = q.get('vq') ?? '';
-  const vy = q.get('vy') ?? '';
   const canLook = can(ctx.who, 'vehicle.lookup');
-  const matches = vq && canLook ? null : null;
-  let matchHtml = '';
   const saved = customer && canLook ? ctx.app.vehicles.forCustomer(ctx.who, customer.id).vehicles ?? [] : [];
-
-  const hidden = (spec) => KEYS.map((k) => `<input type="hidden" name="${k}" value="${esc(spec[k] ?? '')}">`).join('');
   const savedHtml = saved.length ? `<h3>${esc(customer.name)}’s vehicles</h3><ul class="plain">${saved.map((v) => `<li><span>${esc(describeVehicle({ ...v, year: v.year ?? '' }))}${v.vin ? ` <small>VIN …${esc(v.vin.slice(-6))}</small>` : ''}</span>
-    ${closed ? '' : `<form method="post" action="/calls/${callId}/vehicle/use"><input type="hidden" name="saved" value="${v.id}"><button>Use</button></form>`}</li>`).join('')}</ul>` : '';
-
-  const vehicle = describeVehicle({ year: a.year, make: a.make, model: a.model, engine: a.engine, drivetrain: a.drivetrain });
-  const lookupHtml = closed || !canLook ? '' : `
-    <form method="post" action="/calls/${callId}/vehicle/vin" class="row" autocomplete="off"><label class="sr" for="vin-in">VIN</label><input id="vin-in" name="vin" placeholder="VIN (17 characters)" maxlength="30" spellcheck="false" autocapitalize="characters"><button>Look up VIN</button></form>
-    <form method="post" action="/calls/${callId}/vehicle/match" class="row"><label class="sr" for="vq">Year and model</label><input id="vq" name="vq" value="${esc(vq)}" placeholder="Year and model, e.g. 2015 silverado"><label class="sr" for="vy">Year</label><input id="vy" name="vy" class="qty" value="${esc(vy)}" inputmode="numeric" placeholder="Year"><button>Find closest</button></form>
-    <details class="picker" data-vehicle-picker data-call="${callId}"><summary>Pick year, make, model</summary>
-      <form method="post" action="/calls/${callId}/vehicle/use" class="stack">
-        <div class="four"><label>Year<input name="year" list="dl-year" inputmode="numeric" value="${esc(a.year ?? '')}" autocomplete="off"></label><label>Make<input name="make" list="dl-make" value="${esc(a.make ?? '')}" autocomplete="off"></label>
-        <label>Model<input name="model" list="dl-model" value="${esc(a.model ?? '')}" autocomplete="off"></label><label>Engine<input name="engine" list="dl-engine" value="${esc(a.engine ?? '')}" autocomplete="off"></label></div>
-        <div class="two"><label>Drivetrain<input name="drivetrain" list="dl-drive" value="${esc(a.drivetrain ?? '')}" autocomplete="off"></label><span></span></div>
-        <datalist id="dl-year"></datalist><datalist id="dl-make"></datalist><datalist id="dl-model"></datalist><datalist id="dl-engine"></datalist><datalist id="dl-drive"></datalist>
-        <button>Use this vehicle</button></form></details>`;
-
-  return { lookupHtml, savedHtml, vehicle, vq, vy, hidden, matchHtml, deferMatch: vq && canLook ? { vq, vy } : null };
+    ${closed ? '' : `<form method="post" action="/calls/${call.id}/vehicle/use"><input type="hidden" name="saved" value="${v.id}"><button>Use</button></form>`}</li>`).join('')}</ul>` : '';
+  return { savedHtml };
 }
 
-/**
- * The "closest match" list, as data for the match-list component. Slow the first time a year is
- * searched (that year's index is built from NHTSA), which is why the page streams it.
- */
-export async function matchData(ctx, vq, vy) {
-  const r = await ctx.app.vehicles.match(ctx.who, { year: Number(vy) || null, text: vq });
-  if (r.error) return { note: say(r.error), matches: [] };
-  if (!r.matches.length) return { note: `No close match${r.year ? ` for ${r.year}` : ''}. Try fewer words, or pick by hand.`, matches: [] };
-  const footnote = [r.partial ? 'Some makes couldn’t be checked right now, so this list may be missing a few.' : '', r.year ? '' : 'Add a year for a sharper match.'].filter(Boolean).join(' ');
-  return { note: '', footnote, matches: r.matches.map((m, i) => ({ key: `${i}`, make: String(m.make), model: String(m.model), year: String(m.year || r.year || ''), exact: m.score >= 95 })) };
-}
 
 export function partsPanel(ctx, got, closed) {
   const callId = got.call.id;

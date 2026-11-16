@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased: call lines as work
+- Quick entry reads a **VIN** (decoded when you press Enter; the lines after it are for that vehicle; saved to the customer) and **paint** in any order (`1qt d3 valspar single stage`): code, type (touch-up, spray can, single stage, basecoat/clearcoat), brand (Nason, Valspar) and amount in oz, qt or gal, shown as a paint card.
+- Every part line is queued for part-number suggestions in the background (saved answers first, then the AI); up to five show under the line.
+- Each line is worked down the list: open, found it, need to order, can't get.
+- The vehicle lookup panel on the right of a call is gone; the vehicle comes from quick entry. The customer's vehicles on file stay.
+- Zubra packages upgraded from 5.17.0 to 5.19.0 (5.17 and 5.18 have Host header and router guard bypasses).
+
 ## Unreleased: backups and support
 - The app now backs itself up: a copy of the database at start and every 24 hours, newest 14 kept (`BACKUP_DIR`, `BACKUP_EVERY_HOURS`).
 - New `docs/support.md` (what to do when something breaks, handing it over) and `docs/owner-sheet.md` (a one-page "if it stops working" sheet for the owner).

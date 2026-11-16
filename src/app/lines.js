@@ -188,9 +188,12 @@ export function createLines({ db, audit, now, changed, vehicles = null, queue = 
         sync(who, callId);
         event(callId, who, 'line-vin', { text: sayVehicle(decoded) });
       });
+      // With a customer on the call, the vehicle is kept on them too, as a VIN typed anywhere else is.
+      const customerId = callRow(callId).customer_id;
+      const kept = customerId ? vehicles.saveFor(who, customerId, read.spec) : null;
       changed({ type: 'call', id: callId, why: 'lines', by: who.email });
       queue();
-      return { ok: true, warnings: read.warnings, ...summary(callId) };
+      return { ok: true, warnings: read.warnings, savedToCustomer: Boolean(kept?.ok), ...summary(callId) };
     },
 
     remove(who, callId, lineId) {

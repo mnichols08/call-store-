@@ -258,3 +258,9 @@ test('the read-back of a paint line', () => {
   assert.equal(sayLine(p, {}), 'Paint D3 · Valspar single stage · 1 qt');
   assert.equal(sayLine(read('paint'), {}), 'Paint (code?)');
 });
+
+test('a VIN starts its own vehicle: lines after it are not for the vehicle before it', () => {
+  let vehicle = carryVehicle({}, read('2012 civic'));
+  vehicle = carryVehicle(vehicle, read('1HGCV1F30JA012345'));
+  assert.deepEqual(vehicle, {});
+});

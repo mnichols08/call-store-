@@ -461,13 +461,14 @@ export function parseLine(text, { now = new Date() } = {}) {
 export const sayVehicle = (v) => [v?.year, v?.make, v?.model, v?.engine, v?.drivetrain].filter(Boolean).join(' ');
 
 /**
- * What vehicle the next line is about. A line with a make or model starts a new vehicle (nothing is
+ * What vehicle the next line is about. A line with a VIN, make or model starts a new vehicle (nothing is
  * carried over from the last one); a line with only a year, engine or drivetrain changes the current
  * vehicle; a line with none of them stays on the current vehicle.
  */
 export function carryVehicle(current, parsed) {
   const v = parsed.vehicle;
-  if (v.make || v.model) return { ...v };
+  // A VIN is a vehicle of its own: until it is decoded it is only the VIN, never the last one typed.
+  if (parsed.vin || v.make || v.model) return { ...v };
   if (Object.keys(v).length) return { ...(current ?? {}), ...v };
   return { ...(current ?? {}) };
 }

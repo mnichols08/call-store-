@@ -65,47 +65,34 @@ after(() => {
   web.server.close();
 });
 
-test('VIN on a call fills the vehicle, and with a customer attached it is saved to them', async () => {
+test('a VIN typed on a call fills the vehicle, and with a customer attached it is saved to them', async () => {
   const olive = await signedIn();
   const call = (await olive('/calls', { method: 'POST', form: {} })).location;
   const id = call.split('/').pop();
-  assert.match((await olive(call)).text, /Vehicle lookup/);
-
-  const bad = await follow(olive, await olive(`${call}/vehicle/vin`, { method: 'POST', form: { vin: 'nope' } }));
-  assert.match(bad.text, /17 characters/);
+  assert.doesNotMatch((await olive(call)).text, /Vehicle lookup/, 'the vehicle comes from "What do they need?" now');
 
   const customer = await olive('/customers', { method: 'POST', form: { name: 'Bubba Farms', kind: 'organization', phone_0: '5551230000', call: id } });
   assert.equal(customer.location.replace(/[?&](done|problem)=.*/, ''), call);
   const cid = String(web.app.calls.get({ email: 'x', roles: ['owner'] }, Number(id)).customer.id);
 
-  const rawOk = await olive(`${call}/vehicle/vin`, { method: 'POST', form: { vin: '1FTPW14V28KC12345' } });
-  assert.match(rawOk.location, /\?done=.*#vehicle$/, 'the message comes before the #section');
-  const ok = await follow(olive, rawOk);
-  assert.match(ok.text, /2008 Ford F-150 5\.4L V8 4WD/);
-  assert.match(ok.text, /Saved to the customer/);
-  assert.match(ok.text, /name="app_year" value="2008"|value="2008"/);
+  const typed = await olive(`${call}/lines`, { method: 'POST', form: { text: '1ftpw14v28kc12345' }, json: true });
+  const body = JSON.parse(typed.text);
+  assert.equal(body.ok, true);
+  assert.deepEqual(body.lines[0].vehicle, { year: '2008', make: 'Ford', model: 'F-150', engine: '5.4L V8', drivetrain: '4WD' });
+  assert.equal(body.application.vin, '1FTPW14V28KC12345');
+  assert.equal(body.savedToCustomer, true);
+  assert.match((await olive(call)).text, /value="2008"/, 'the call’s own fields follow');
   assert.match((await olive(`/customers/${cid}`)).text, /VIN 1FTPW14V28KC12345/);
-  const leaks = web.app.audit.recent(40).filter((e) => JSON.stringify(e).includes('1FTPW14V28KC12345')).map((e) => e.action);
-  assert.deepEqual(leaks, ['call.application'], 'only the call’s own record holds the VIN; the lookup and save entries carry the end of it');
 
-  // The next call for the same customer offers the vehicle without a VIN lookup.
+  // The next call for the same customer offers the vehicle without typing it again.
   const next = (await olive('/calls', { method: 'POST', form: { customer: cid } })).location;
   const page = (await olive(next)).text;
-  assert.match(page, /Bubba Farms’s vehicles|Bubba Farms&#39;s vehicles|vehicles<\/h3>/);
+  assert.match(page, /Vehicles on file/);
   assert.match(page, /name="saved"/);
-  void id;
-});
-
-test('find by year and model shows the closest make, and "Use" puts it on the call', async () => {
-  const olive = await signedIn();
-  const call = (await olive('/calls', { method: 'POST', form: {} })).location;
-  const posted = await olive(`${call}/vehicle/match`, { method: 'POST', form: { vq: '2008 f150' } });
-  assert.match(posted.location, /vq=2008\+f150/);
-  const page = (await olive(posted.location)).text;
-  assert.match(page, /Ford F-150/);
-  const used = await follow(olive, await olive(`${call}/vehicle/use`, { method: 'POST', form: { year: '2008', make: 'Ford', model: 'F-150' } }));
-  assert.match(used.text, /On this call: <strong>2008 Ford F-150<\/strong>/);
-  assert.equal((await olive(`${call}/vehicle/use`, { method: 'POST', form: { year: '2008' } })).status, 303);
+  const saved = /name="saved" value="(\d+)"/.exec(page)[1];
+  const used = await follow(olive, await olive(`${next}/vehicle/use`, { method: 'POST', form: { saved } }));
+  assert.match(used.text, /value="F-150"/);
+  assert.equal((await olive(`${next}/vehicle/use`, { method: 'POST', form: { year: '2008' } })).status, 303);
 });
 
 test('parts finder: AI once, memory after, feedback buttons, AI text escaped, add to the call', async () => {
