@@ -31,6 +31,13 @@ export const config = Object.freeze({
   aiTimeoutMs: Number(process.env.AI_TIMEOUT_MS ?? 45_000),
   // Email to customers (one-time sign-in links, request updates). Without these they wait in the outbox.
   mail: Object.freeze({ provider: process.env.MAIL_PROVIDER ?? '', apiKey: process.env.RESEND_API_KEY ?? '', from: process.env.MAIL_FROM ?? '' }),
+  // Texts: brevo (BREVO_API_KEY) or twilio (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN); SMS_SENDER is the name or number they come from.
+  sms: Object.freeze({
+    provider: process.env.SMS_PROVIDER ?? '',
+    apiKey: (process.env.SMS_PROVIDER === 'twilio' ? process.env.TWILIO_AUTH_TOKEN : process.env.BREVO_API_KEY) ?? '',
+    account: process.env.TWILIO_ACCOUNT_SID ?? '',
+    sender: process.env.SMS_SENDER ?? '',
+  }),
   // Part-number suggestions from Claude. Without a key the finder still works from what the shop has saved.
   ai: Object.freeze({
     apiKey: process.env.ANTHROPIC_API_KEY ?? '',

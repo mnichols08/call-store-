@@ -8,6 +8,7 @@ import { createLimiter } from './limiter.js';
 import { UPDATE_KINDS } from '../domain/portal.js';
 import { LIMITS } from '../app/details.js';
 import { PORTAL } from '../app/portal.js';
+import { relyingParty } from '../app/people.js';
 import { SHOP } from '../domain/shop.js';
 import { SERVICE_TYPES } from '../domain/measure.js';
 import { STATUS_LABEL as DELIVERY_LABEL, deliveryTowns } from '../domain/delivery.js';
@@ -26,6 +27,13 @@ const SAYS = {
   'forbidden': 'That isn’t allowed.',
   'business': 'Please add your business’s name.',
   'code': 'That code isn’t working any more. Ask for a new one.',
+  'token': 'That link isn’t working. It may have been used already or have expired. Ask the shop for a new one.',
+  'username': 'Pick a username of 3 to 40 letters, numbers, dots, dashes or underscores.',
+  'username-taken': 'That username is taken. Try another.',
+  'password': 'Use a password of at least 10 characters.',
+  'email-taken': 'That email already has an account. Sign in instead.',
+  'sign-in': 'That username and password don’t match.',
+  'passkey': 'That passkey didn’t work. Try again, or use a username and password.',
 };
 const GOOD = { sent: 'Thank you. We’ve got it.', saved: 'Saved.', mailed: 'Done. If that address can be used, a link is on its way.', invited: 'Invite sent.', removed: 'Removed.', note: 'Note added.' };
 
@@ -125,7 +133,7 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
     const base = origin(req);
     const share = made ? `${base}/join/${made.token}` : '';
     return `<div class="head"><h1>Your team</h1><a class="btn" href="/portal">Back</a></div>${flash(q)}
-      <section class="panel stack"><h2>People at ${esc(acct.business)}</h2><ul class="list">${members.map((m) => `<li><strong>${esc(m.name)}</strong> <span class="muted">${esc(m.email)}${m.role === 'admin' ? ' · admin' : ''}</span>
+      <section class="panel stack"><h2>People at ${esc(acct.business)}</h2><ul class="list">${members.map((m) => `<li><strong>${esc(m.name)}</strong> <span class="muted">${esc(m.email ?? (m.username ? `@${m.username}` : 'no email'))}${m.role === 'admin' ? ' · admin' : ''}</span>
         ${acct.role === 'admin' && m.id !== acct.id ? `<form method="post" action="/portal/team/${m.id}/remove" class="inline"><button class="link">Remove</button></form>` : ''}</li>`).join('')}</ul></section>
       <section class="panel stack"><h2>Invite a coworker</h2><p class="muted">They’ll see this business’s requests and updates. Each invite works for ${48} hours.</p>
         <form method="post" action="/portal/team/invite" class="row"><label>Email<input name="email" type="email" maxlength="120" required></label><button class="btn primary">Email an invite</button></form>
@@ -149,13 +157,74 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
       const removal = /^\/portal\/team\/(\d+)\/remove$/.exec(p);
       const hello = /^\/hello\/([A-Za-z0-9_-]{20,80})$/.exec(p);
       const badge = /^\/badge\/([A-Za-z0-9_-]{20,80})$/.exec(p);
-      const known = hello || badge || p === '/portal/code' || m || verify || rq || removal || ['/portal', '/portal/login', '/portal/sign-out', '/portal/requests', '/portal/requests/new', '/portal/team', '/portal/team/invite'].includes(p);
+      const welcome = /^\/welcome\/([A-Za-z0-9_-]{20,80})(?:\/(passkey-options|passkey))?$/.exec(p);
+      const known = welcome || hello || badge || ['/portal/login/password', '/portal/passkey-options', '/portal/passkey'].includes(p) || p === '/portal/code' || m || verify || rq || removal || ['/portal', '/portal/login', '/portal/sign-out', '/portal/requests', '/portal/requests/new', '/portal/team', '/portal/team/invite'].includes(p);
       if (!known) return false;
       if (!any.take(ip)) { json(res, 429, { error: 'slow-down' }); return true; }
       const q = url.searchParams;
       const here = origin(req);
 
       // ---- before signing in
+      const relying = () => relyingParty(here, config.business);
+      const response = () => { try { return JSON.parse(String(form.get('response') ?? '')); } catch { return null; } };
+      if (welcome) {
+        const [, token, step] = welcome;
+        const info = app.portal.people.info(token);
+        if (info.error) {
+          if (!bad.take(ip)) return json(res, 429, { error: 'slow-down' }), true;
+          if (step) return json(res, 400, { error: 'token', message: SAYS.token }), true;
+          page(res, nonce, 404, 'Link not working', `<div class="head"><h1>This link isn’t working</h1></div><section class="panel"><p>${esc(SAYS.token)}</p></section>`);
+          return true;
+        }
+        if (posting && !here) return noOrigin(res, nonce), true;
+        if (posting && step === 'passkey-options') {
+          const r = await app.portal.people.passkeyOptions(token, { name: form.get('name') }, relying());
+          return json(res, r.error ? 400 : 200, r.error ? { error: r.error, message: SAYS[r.error] } : { options: r.options, handle: r.handle }), true;
+        }
+        if (posting && step === 'passkey') {
+          const r = await app.portal.people.joinWithPasskey(token, String(form.get('handle') ?? ''), response(), relying());
+          if (r.error) return json(res, 400, { error: r.error, message: SAYS[r.error] }), true;
+          res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'set-cookie': setCookie(r.session) });
+          res.end(JSON.stringify({ ok: true, go: '/portal?ok=sent' }));
+          return true;
+        }
+        if (posting && !step) {
+          if (!bad.take(ip)) return json(res, 429, { error: 'slow-down' }), true;
+          const r = await app.portal.people.joinWithPassword(token, { name: form.get('name'), username: form.get('username'), password: form.get('password') });
+          if (r.error) return fail(res, `/welcome/${token}`, r), true;
+          return go(res, '/portal?ok=sent', setCookie(r.session)), true;
+        }
+        if (step) return false;
+        page(res, nonce, 200, 'Set up your account', `<div class="head"><h1>Order for ${esc(info.business)}</h1></div>${flash(q)}
+          <section class="panel stack"><p>${esc(config.business)} set up an account for you. Pick how you’ll sign in. This link works once.</p>
+          <label>Your name<input form="pw" id="welcome-name" name="name" maxlength="80" required autocomplete="name" value="${esc(info.name)}"></label></section>
+          <section class="panel stack" data-passkey-join="/welcome/${token}" hidden><h2>Use a passkey</h2><p class="muted">Sign in with your fingerprint, face or phone lock. Nothing to remember.</p>
+          <button type="button" class="btn primary" data-passkey-start>Set up a passkey</button><p class="flash problem" role="alert" data-passkey-problem hidden></p></section>
+          <form id="pw" class="panel stack" method="post" action="/welcome/${token}"><h2>Or a username and password</h2>
+          <label>Username<input name="username" maxlength="40" minlength="3" required autocomplete="username" autocapitalize="none" spellcheck="false"></label>
+          <label>Password<input name="password" type="password" minlength="10" maxlength="200" required autocomplete="new-password"></label>
+          <button class="btn">Finish with a password</button>${info.hasEmail ? '<p class="muted">You can also get a sign-in link by email any time.</p>' : ''}</form>`,
+          { script: '<script src="/assets/webauthn.js" defer></script><script src="/assets/passkey.js" defer></script>' });
+        return true;
+      }
+      if (p === '/portal/login/password' && posting) {
+        const r = await app.portal.people.signIn(form.get('username'), form.get('password'));
+        if (r.error) { bad.take(ip); return fail(res, '/portal/login', r), true; }
+        return go(res, '/portal', setCookie(r.session)), true;
+      }
+      if (p === '/portal/passkey-options' && posting) {
+        if (!here) return json(res, 503, { error: 'setup' }), true;
+        const r = await app.portal.people.signInOptions(relying());
+        return json(res, 200, r), true;
+      }
+      if (p === '/portal/passkey' && posting) {
+        if (!here) return json(res, 503, { error: 'setup' }), true;
+        const r = await app.portal.people.signInWithPasskey(String(form.get('handle') ?? ''), response(), relying());
+        if (r.error) { bad.take(ip); return json(res, 400, { error: r.error, message: 'That passkey isn’t set up here. Use your username and password, or an email link.' }), true; }
+        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'set-cookie': setCookie(r.session) });
+        res.end(JSON.stringify({ ok: true, go: '/portal' }));
+        return true;
+      }
       if (badge) {
         // What a phone's camera shows if it scans a customer's badge: harmless, and it uses nothing up.
         page(res, nonce, 200, 'Customer code', '<div class="head"><h1>This code is for the counter</h1></div><section class="panel"><p>Show it to the person helping you, and they’ll scan it with the shop’s scanner.</p></section>');
@@ -210,8 +279,12 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
           if (r.error) return fail(res, '/portal/login', r), true;
           return sentPage(res, nonce, 'Check your email', 'If that address has an account, a sign-in link is on its way. It works once, for 30 minutes.'), true;
         }
-        page(res, nonce, 200, 'Sign in', `<div class="head"><h1>Sign in</h1></div>${flash(q)}<form class="panel stack" method="post" action="/portal/login"><label>Email<input name="email" type="email" maxlength="120" required autocomplete="email"></label><button class="btn primary">Email me a link</button>
-          <p class="muted">New here? Ask ${esc(config.business)} or a coworker for an invite.</p></form>`);
+        page(res, nonce, 200, 'Sign in', `<div class="head"><h1>Sign in</h1></div>${flash(q)}
+          <section class="panel stack" data-passkey-login hidden><button type="button" class="btn primary" data-passkey-start>Sign in with a passkey</button><p class="flash problem" role="alert" data-passkey-problem hidden></p></section>
+          <form class="panel stack" method="post" action="/portal/login/password"><h2>Username and password</h2><label>Username<input name="username" maxlength="40" required autocomplete="username" autocapitalize="none" spellcheck="false"></label>
+          <label>Password<input name="password" type="password" maxlength="200" required autocomplete="current-password"></label><button class="btn">Sign in</button></form>
+          <form class="panel stack" method="post" action="/portal/login"><h2>Or get a link by email</h2><label>Email<input name="email" type="email" maxlength="120" required autocomplete="email"></label><button class="btn">Email me a link</button>
+          <p class="muted">New here? Ask ${esc(config.business)} or a coworker for an invite.</p></form>`, { script: '<script src="/assets/webauthn.js" defer></script><script src="/assets/passkey.js" defer></script>' });
         return true;
       }
       if (verify) {

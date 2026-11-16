@@ -7,6 +7,7 @@ import { clip } from '../domain/text.js';
 import { SERVICE_TYPES } from '../domain/measure.js';
 import { saveDelivery } from './delivery.js';
 import { cleanDelivery } from '../domain/delivery.js';
+import { createPeople } from './people.js';
 import { UPDATE_KINDS, STAFF_KINDS, cleanEmail, currentKind, isOpenForCustomer } from '../domain/portal.js';
 
 const SYSTEM = Object.freeze({ email: 'portal', roles: ['staff'] });
@@ -16,7 +17,9 @@ export const PORTAL = Object.freeze({ badgeMinutes: 10, repCodeDays: 7, accessPe
 const hash = (token) => createHash('sha256').update(token).digest('hex');
 const newToken = () => randomBytes(24).toString('base64url');
 
-export function createPortal({ db, audit, now, changed, details, calls, mailer, nudges, customers, business = 'the shop' }) {
+export function createPortal({ db, audit, now, changed, details, calls, mailer, texter, nudges, customers, business = 'the shop', cost }) {
+  /** How an account is named in the audit log: email, else username, else its id. */
+  const tag = (a) => `portal:${a.email ?? a.username ?? a.id}`;
   const deny = (who, permission) => (can(who, permission) ? null : { error: 'forbidden' });
   const customerName = (id) => db.prepare('SELECT name FROM customers WHERE id = ?').get(id)?.name ?? '';
   const account = (id) => db.prepare('SELECT * FROM portal_accounts WHERE id = ?').get(id);
@@ -53,7 +56,9 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
 
   const kindOf = (callId, status) => currentKind(db.prepare('SELECT * FROM portal_updates WHERE call_id = ? ORDER BY id').all(callId), status);
 
+  const people = createPeople({ db, audit, now, mailer, texter, session: newSession, business, cost });
   return {
+    people,
     // ================================================================ staff side
     /** An invite for a business: a QR code and a join link, optionally emailed. */
     async invite(who, customerId, { email = '', origin = '' } = {}) {
@@ -78,7 +83,7 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
     members(who, customerId) {
       const no = deny(who, 'customer.view');
       if (no) return no;
-      return { ok: true, members: db.prepare("SELECT id, email, name, role, created_at, last_login_at FROM portal_accounts WHERE customer_id = ? AND status = 'active' ORDER BY id").all(customerId), invites: db.prepare('SELECT COUNT(*) AS n FROM portal_invites WHERE customer_id = ? AND revoked = 0 AND expires_at > ? AND uses < max_uses').get(customerId, now()).n };
+      return { ok: true, members: db.prepare("SELECT id, email, username, name, role, created_at, last_login_at FROM portal_accounts WHERE customer_id = ? AND status = 'active' ORDER BY id").all(customerId), invites: db.prepare('SELECT COUNT(*) AS n FROM portal_invites WHERE customer_id = ? AND revoked = 0 AND expires_at > ? AND uses < max_uses').get(customerId, now()).n };
     },
     removeMember(who, accountId) {
       const no = deny(who, 'portal.manage');
@@ -87,7 +92,7 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
       if (!a) return { error: 'missing' };
       db.prepare("UPDATE portal_accounts SET status = 'removed' WHERE id = ?").run(accountId);
       db.prepare('DELETE FROM portal_sessions WHERE account_id = ?').run(accountId);
-      audit.record(who.email, 'portal.member-removed', `customer:${a.customer_id}`, { email: a.email });
+      audit.record(who.email, 'portal.member-removed', `customer:${a.customer_id}`, { email: a.email ?? a.username });
       return { ok: true };
     },
     outbox(who) {
@@ -109,7 +114,8 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
       changed({ type: 'call', id: callId });
       const a = c.portal_account ? account(c.portal_account) : null;
       if (email && a?.status === 'active' && a.notify) {
-        await mail(a.email, `Your request #${callId}: ${UPDATE_KINDS[kind].label}`, [`${UPDATE_KINDS[kind].label}.${text ? `\n${text}` : ''}`, `See it here: ${link(origin, `/portal/requests/${callId}`)}`]);
+        if (a.email) await mail(a.email, `Your request #${callId}: ${UPDATE_KINDS[kind].label}`, [`${UPDATE_KINDS[kind].label}.${text ? `\n${text}` : ''}`, `See it here: ${link(origin, `/portal/requests/${callId}`)}`]);
+        else if (a.phone && texter) await texter.send({ to: a.phone, text: `${business}: request #${callId}: ${UPDATE_KINDS[kind].label}. ${link(origin, `/portal/requests/${callId}`)}` });
       }
       return { ok: true };
     },
@@ -137,7 +143,7 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
       if (!used.changes) return { error: 'badge' };
       const a = account(row.account_id);
       if (!a || a.status !== 'active') return { error: 'badge' };
-      audit.record(who.email, 'portal.badge-scanned', `customer:${a.customer_id}`, { email: a.email });
+      audit.record(who.email, 'portal.badge-scanned', `customer:${a.customer_id}`, { email: a.email ?? a.username });
       return { ok: true, name: a.name, email: a.email, customer: { id: a.customer_id, name: customerName(a.customer_id) } };
     },
 
@@ -277,7 +283,7 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
         const id = old?.id ?? Number(db.prepare('INSERT INTO portal_accounts (customer_id, email, name, role, created_at) VALUES (?, ?, ?, ?, ?)').run(i.customer_id, row.email, row.name, first ? 'admin' : 'member', now()).lastInsertRowid);
         db.prepare('UPDATE portal_invites SET uses = uses + 1 WHERE id = ?').run(i.id);
         a = account(id);
-        audit.record(`portal:${a.email}`, 'portal.joined', `customer:${a.customer_id}`, { role: a.role });
+        audit.record(tag(a), 'portal.joined', `customer:${a.customer_id}`, { role: a.role });
       }
       return { ok: true, account: a, session: newSession(a.id), joined: row.purpose === 'join' };
     },
@@ -294,7 +300,7 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
 
     // ================================================================ a signed-in customer
     team(acct) {
-      return { members: db.prepare("SELECT id, email, name, role, last_login_at FROM portal_accounts WHERE customer_id = ? AND status = 'active' ORDER BY id").all(acct.customer_id) };
+      return { members: db.prepare("SELECT id, email, username, name, role, last_login_at FROM portal_accounts WHERE customer_id = ? AND status = 'active' ORDER BY id").all(acct.customer_id) };
     },
     /** Any member can invite a coworker: a QR code, or an email. */
     async inviteCoworker(acct, { email = '', origin = '' } = {}) {
@@ -302,7 +308,7 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
       const to = email ? cleanEmail(email) : null;
       if (email && !to) return { error: 'email' };
       const made = makeInvite(`account:${acct.id}`, acct.customer_id);
-      audit.record(`portal:${acct.email}`, 'portal.invited', `customer:${acct.customer_id}`, { by: to ? 'email' : 'qr' });
+      audit.record(tag(acct), 'portal.invited', `customer:${acct.customer_id}`, { by: to ? 'email' : 'qr' });
       if (to) await mail(to, `${acct.name} invited you to ${acct.business} on ${business}`, [`${acct.name} invited you to send parts requests to ${business} for ${acct.business}.`, `Use this link to join: ${link(origin, `/join/${made.token}`)}`, `It works for ${PORTAL.inviteHours} hours.`]);
       return { ok: true, ...made, emailed: Boolean(to) };
     },
@@ -311,7 +317,7 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
       if (acct.role !== 'admin' || !target || target.customer_id !== acct.customer_id || target.id === acct.id) return { error: 'forbidden' };
       db.prepare("UPDATE portal_accounts SET status = 'removed' WHERE id = ?").run(target.id);
       db.prepare('DELETE FROM portal_sessions WHERE account_id = ?').run(target.id);
-      audit.record(`portal:${acct.email}`, 'portal.member-removed', `customer:${acct.customer_id}`, { email: target.email });
+      audit.record(tag(acct), 'portal.member-removed', `customer:${acct.customer_id}`, { email: target.email ?? target.username });
       return { ok: true };
     },
     setNotify(acct, on) {
@@ -356,8 +362,8 @@ export function createPortal({ db, audit, now, changed, details, calls, mailer, 
       if (r.error) return r;
       db.prepare("UPDATE calls SET source = 'portal', portal_account = ?, created_by = 'portal' WHERE id = ?").run(acct.id, r.id);
       db.prepare("INSERT INTO portal_updates (call_id, at, kind, message, account_id) VALUES (?, ?, 'received', '', ?)").run(r.id, now(), acct.id);
-      if (deliver) saveDelivery({ db, now }, r.id, { town: input.deliveryTown, address: input.deliveryAddress, note: input.deliveryNote }, `portal:${acct.email}`);
-      audit.record(`portal:${acct.email}`, 'portal.request', `call:${r.id}`, {});
+      if (deliver) saveDelivery({ db, now }, r.id, { town: input.deliveryTown, address: input.deliveryAddress, note: input.deliveryNote }, tag(acct));
+      audit.record(tag(acct), 'portal.request', `call:${r.id}`, {});
       changed({ type: 'call', id: r.id });
       return { ok: true, id: r.id, service: job?.key ?? '' };
     },

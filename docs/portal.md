@@ -27,3 +27,21 @@ Per-address and per-IP rate limits on joining, sign-in and uploads; 20 requests 
 
 ## Not built yet
 SMS sign-in (a Twilio version of the same one-time link), prices and ordering/payment, inventory or POS links, reading stamped part numbers from photos.
+
+
+## One person, one link (since migration 014)
+
+A rep invites one person from **Invite** or the customer's *Online account* panel. The link
+(`/welcome/<token>`) works once, for 3 days, and is texted, emailed, or shown as a QR code on the
+rep's screen. It is tied to the customer the rep chose; the person only gives their name and picks:
+
+- **a passkey** (WebAuthn, `@simplewebauthn`): only the public key is kept, in `portal_passkeys`.
+  The relying party is the host of `PUBLIC_URL`, so passkeys made on one address don't work on another.
+- **a username and password**: scrypt, the kit's format. Eight wrong tries in 15 minutes locks that
+  username out for the rest of the window.
+
+The emailed one-time sign-in link still works for anyone with an email on file. Accounts made this
+way may have no email; updates then go by text if there's a phone.
+
+Because whoever holds a person link can claim the account, send it only to that person, and show
+the QR only face to face.

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased: invites, passkeys and texts
+- New **Invite** page (staff menu). Someone at a customer: find or add the customer first, then send a one-time link by text, email, or a QR code on your screen. The person picks their name, then a passkey or a username and password; they never choose their customer. The same "Invite a person" form is on each customer's Online account panel.
+- Employees: managers invite counter staff, the owner invites anyone (kit PR #21). The link goes by text, email or QR; the employee picks a password (no passkeys for staff).
+- Portal sign-in: passkey, or username and password, with the emailed link kept as a backup. Accounts no longer need an email; updates go by text to accounts with only a phone.
+- Texts go through Brevo or Twilio (`SMS_PROVIDER`), or wait in the Outbox when neither is set up.
+- Migration 014 rebuilds `portal_accounts`; migrations that rebuild a table run with foreign keys off and checked before commit.
+
 ## Unreleased: call lines as work
 - Quick entry reads a **VIN** (decoded when you press Enter; the lines after it are for that vehicle; saved to the customer) and **paint** in any order (`1qt d3 valspar single stage`): code, type (touch-up, spray can, single stage, basecoat/clearcoat), brand (Nason, Valspar) and amount in oz, qt or gal, shown as a paint card.
 - Every part line is queued for part-number suggestions in the background (saved answers first, then the AI); up to five show under the line.

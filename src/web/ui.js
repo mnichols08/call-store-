@@ -47,6 +47,7 @@ const NAV = [
   ]],
   ['Customers and parts', [
     ['/customers', 'Customers', 'customers', 'customer.view', 'M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0zM4 21a8 8 0 0 1 16 0'],
+    ['/invite', 'Invite', 'invite', 'portal.invite', 'M15 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM3 21a8 8 0 0 1 14-5M19 14v6M16 17h6'],
     ['/scan', 'Scan', 'scan', 'customer.view', 'M3 8V3h5M16 3h5v5M21 16v5h-5M8 21H3v-5M7 12h10'],
     ['/items', 'Items', 'items', 'item.view', 'M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v9'],
   ]],

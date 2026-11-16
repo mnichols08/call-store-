@@ -15,6 +15,7 @@ const originOf = (ctx) => (ctx.config.publicUrl || `${ctx.req.headers['x-forward
 const codeBox = (link, label) => { const svg = qrSvg(link, { label }); return svg ? `<div class="qr">${svg}</div>` : ''; };
 const WORDS = {
   'badge': 'That code didn’t work. Codes are good for ten minutes and work once. Ask for a new one.',
+  'phone': 'That phone number doesn’t look right. Use a 10-digit US number.', 'via': 'Choose text, email or QR code.', 'token': 'That link isn’t working.',
   'business': 'Choose a customer, or add a new one.', 'email': 'That email address doesn’t look right.', 'slow-down': 'Too many invites just now. Try again in a little while.', 'message': 'Add a short message for that kind of update.', 'kind': 'Pick an update to send.' };
 const problem = (r) => WORDS[r.error] ?? say(r.error);
 
@@ -24,15 +25,23 @@ export function customerPortalPanel(ctx, customer) {
   if (!can(who, 'portal.invite') && !can(who, 'customer.view')) return '';
   const { members = [], invites = 0 } = ctx.app.portal.members(who, customer.id);
   const list = members.length
-    ? `<ul class="plain">${members.map((m) => `<li><span><strong>${esc(m.name)}</strong>${m.role === 'admin' ? ' · admin' : ''}<small>${esc(m.email)}${m.last_login_at ? ` · signed in ${esc(ago(m.last_login_at, ctx.now()))}` : ''}</small></span>
+    ? `<ul class="plain">${members.map((m) => `<li><span><strong>${esc(m.name)}</strong>${m.role === 'admin' ? ' · admin' : ''}<small>${esc(m.email ?? (m.username ? `@${m.username}` : 'no email'))}${m.last_login_at ? ` · signed in ${esc(ago(m.last_login_at, ctx.now()))}` : ''}</small></span>
       ${can(who, 'portal.manage') ? `<form method="post" action="/portal-members/${m.id}/remove" data-confirm="Remove ${esc(m.name)}?"><button class="link" aria-label="Remove ${esc(m.name)}">Remove</button></form>` : ''}</li>`).join('')}</ul>`
     : '<p class="muted">Nobody has joined yet.</p>';
+  const person = can(who, 'portal.invite')
+    ? `<form method="post" action="/customers/${customer.id}/portal/person" class="stack"><h3>Invite a person</h3>
+        <p class="muted">They get a one-time link, pick their name, and set up a passkey or a username and password. They join this customer; they don’t choose it.</p>
+        <label>Their name (optional)<input name="name" maxlength="80" autocomplete="off"></label>
+        <div class="row"><label>Cell phone<input name="phone" type="tel" maxlength="30" autocomplete="off" placeholder="304-555-0100"></label><label>Email<input name="email" type="email" maxlength="120" autocomplete="off"></label></div>
+        <fieldset class="row"><legend>Send it by</legend><label class="check"><input type="radio" name="via" value="text"> Text</label><label class="check"><input type="radio" name="via" value="email"> Email</label><label class="check"><input type="radio" name="via" value="qr" checked> QR code on my screen</label></fieldset>
+        <div class="row"><button class="btn primary">Invite</button></div></form>`
+    : '';
   const invite = can(who, 'portal.invite')
-    ? `<form method="post" action="/customers/${customer.id}/portal/invite" class="stack"><label>Email an invite (optional)<input name="email" type="email" maxlength="120" placeholder="pat@farm.com"></label>
+    ? `<h3>Or a code for the whole business</h3><form method="post" action="/customers/${customer.id}/portal/invite" class="stack"><label>Email an invite (optional)<input name="email" type="email" maxlength="120" placeholder="pat@farm.com"></label>
         <div class="row"><button class="btn primary">Make an invite</button></div><p class="muted">Leave the email empty to get a QR code to show on your phone.</p></form>
         ${invites ? `<form method="post" action="/customers/${customer.id}/portal/revoke"><button class="link">Turn off ${invites} open invite${invites === 1 ? '' : 's'}</button></form>` : ''}`
     : '';
-  return `<section class="panel stack" id="portal"><h2>Online account</h2>${list}${invite}</section>`;
+  return `<section class="panel stack" id="portal"><h2>Online account</h2>${list}${person}${invite}</section>`;
 }
 
 /** What a web request shows staff: the timeline the customer sees, and a way to update them. */
@@ -121,6 +130,17 @@ export function portalRoutes(router) {
       <section class="panel stack"><p>Have them scan this with their phone. It works for 48 hours, for ten people at most.</p>${codeBox(link, `Join ${name}`)}
       <label>Link<input id="the-link" readonly value="${esc(link)}"></label><div class="row"><button class="btn primary" type="button" data-copy="the-link">Copy link</button></div></section>`, { script: '<script src="/assets/details.js" defer></script>' });
   });
+  router.post('/customers/:id/portal/person', async (ctx) => {
+    const id = Number(ctx.params.id);
+    const f = (k) => String(ctx.form.get(k) ?? '').trim();
+    const r = await ctx.app.portal.people.invite(ctx.who, id, { name: f('name'), phone: f('phone'), email: f('email'), via: f('via') || 'qr', origin: originOf(ctx) });
+    if (r.error) return ctx.redirect(`/customers/${id}#portal`, { problem: problem(r) });
+    if (r.via !== 'qr') return ctx.redirect(`/customers/${id}#portal`, { done: r.via === 'text' ? 'Invite texted.' : 'Invite emailed.' });
+    const name = ctx.app.customers.get(ctx.who, id).customer?.name ?? '';
+    return ctx.send('Invite', `<div class="head"><h1>Invite someone at ${esc(name)}</h1><a class="btn" href="/customers/${id}#portal">Done</a></div>
+      <section class="panel stack"><p>Have them scan this with their phone’s camera. It works once, for 3 days.</p>${codeBox(r.url, `Join ${name}`)}
+      <label>Link<input id="the-link" readonly value="${esc(r.url)}"></label><div class="row"><button class="btn primary" type="button" data-copy="the-link">Copy link</button></div></section>`, { script: '<script src="/assets/details.js" defer></script>' });
+  });
   router.post('/customers/:id/portal/revoke', (ctx) => {
     const id = Number(ctx.params.id);
     const r = ctx.app.portal.revokeInvites(ctx.who, id);
@@ -159,6 +179,6 @@ export function portalRoutes(router) {
     if (r.error) return ctx.forbidden();
     return ctx.send('Outbox', `<div class="head"><h1>Outbox</h1></div>
       <section class="panel stack"><p>${r.live ? 'Email is on. Messages that failed to send are kept here.' : 'Email isn’t set up, so messages to customers are kept here instead of being sent. Set <code>MAIL_PROVIDER</code>, <code>RESEND_API_KEY</code> and <code>MAIL_FROM</code> to send them.'}</p></section>
-      <section class="panel">${r.messages.length ? `<table class="grid compact"><thead><tr><th>When</th><th>To</th><th>Subject</th></tr></thead><tbody>${r.messages.map((m) => `<tr><td class="muted">${esc(when(m.created_at, ctx.config.zone))}</td><td>${esc(m.to_email)}</td><td><details><summary>${esc(m.subject)}</summary><pre class="wrap">${esc(m.body)}</pre></details></td></tr>`).join('')}</tbody></table>` : '<p class="muted">Empty.</p>'}</section>`, { active: 'outbox' });
+      <section class="panel">${r.messages.length ? `<table class="grid compact"><thead><tr><th>When</th><th>To</th><th>Subject</th></tr></thead><tbody>${r.messages.map((m) => `<tr><td class="muted">${esc(when(m.created_at, ctx.config.zone))}</td><td>${m.channel === 'text' ? 'Text to ' : ''}${esc(m.to_email)}</td><td><details><summary>${esc(m.subject)}</summary><pre class="wrap">${esc(m.body)}</pre></details></td></tr>`).join('')}</tbody></table>` : '<p class="muted">Empty.</p>'}</section>`, { active: 'outbox' });
   });
 }

@@ -31,4 +31,5 @@ Rules that go with it:
 - Watching is off until a manager or owner turns it on, and turning it off ends every watch. The person being watched is always shown who is watching; each watch leaves an activity-log line (at most one per ten minutes per person per call). Watchers see the call but can't change it; a suggestion is only a card until the person working the call (or a manager) accepts it.
 - The customer link is the one place without a sign-in. It opens a single request, for 48 hours, and can only add measurements, a note and photos; it cannot read anything. Only a hash of the link is stored, wrong guesses are rate-limited, and staff can turn a call's links off at any time. A closed call takes nothing more.
 
-- `portal.invite`, `portal.update`: all staff. `portal.manage` (remove members, outbox): managers and owners.
+- `portal.invite`, `portal.update`: all staff (`portal.invite` covers inviting a person at a customer).
+- Inviting employees is the kit's rule, set in `src/web/server.js`: managers may give the `staff` role; the owner may give any role. Staff can't invite employees. `portal.manage` (remove members, outbox): managers and owners.

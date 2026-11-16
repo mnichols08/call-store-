@@ -18,6 +18,7 @@ import { createCustomerPages } from './customer.js';
 import { createPortalPages } from './portal.js';
 import { createSite } from './site.js';
 import { portalRoutes } from './pages/portal.js';
+import { inviteRoutes } from './pages/invite.js';
 import { LIMITS } from '../app/details.js';
 import { vehicleRoutes } from './pages/vehicles.js';
 import { createApp } from '../app/index.js';
@@ -43,7 +44,7 @@ const IMPORT_BODY = 2 * 1024 * 1024; // a pasted customer list, percent-encoded,
 
 export async function createWeb({ db, config, now = Date.now, log = createLogger({ requests: config.logRequests }), sendPush, fetcher, ai }) {
   const store = sqliteStore(db);
-  const staff = createStaff({ store, roles: ROLES, name: 'call-store', secure: config.production });
+  const staff = createStaff({ store, roles: ROLES, invites: { manager: ['staff'] }, name: 'call-store', secure: config.production });
   const notices = createNotices({ secret: config.secret });
   const zubra = createZubra({ components: join(here, 'components'), production: config.production });
   const clients = new Set();
@@ -60,6 +61,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     fetcher,
     ai: ai ?? { apiKey: config.ai?.apiKey, model: config.ai?.model, webSearch: config.ai?.webSearch, domains: config.ai?.domains },
     mail: { provider: config.mail?.provider, apiKey: config.mail?.apiKey, from: config.mail?.from },
+    sms: { provider: config.sms?.provider, apiKey: config.sms?.apiKey, account: config.sms?.account, sender: config.sms?.sender },
     business: config.business,
     zone: config.zone,
     limits: { hourly: config.ai?.hourly ?? 30, daily: config.ai?.daily ?? 200 },
@@ -99,6 +101,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
   ordersRoutes(router);
   deliveryRoutes(router);
   portalRoutes(router);
+  inviteRoutes(router);
 
   const customer = createCustomerPages({ app, config, zubra, now });
   const site = createSite({ config, app, now });
@@ -206,7 +209,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const requestId = randomBytes(6).toString('hex');
     res.setHeader('x-request-id', requestId);
     // Metric labels are route patterns, never raw paths, so strangers can't make up new series.
-    res.cstoreRoute = url.pathname.startsWith('/assets/') ? '/assets/*' : url.pathname.startsWith('/staff') ? '/staff/*' : url.pathname.startsWith('/portal') || url.pathname.startsWith('/join/') || url.pathname.startsWith('/hello/') || url.pathname.startsWith('/badge/') ? '/portal/*' : ['/healthz', '/sw.js', '/metrics', '/events'].includes(url.pathname) ? url.pathname : 'other';
+    res.cstoreRoute = url.pathname.startsWith('/assets/') ? '/assets/*' : url.pathname.startsWith('/staff') ? '/staff/*' : url.pathname.startsWith('/portal') || url.pathname.startsWith('/join/') || url.pathname.startsWith('/welcome/') || url.pathname.startsWith('/hello/') || url.pathname.startsWith('/badge/') ? '/portal/*' : ['/healthz', '/sw.js', '/metrics', '/events'].includes(url.pathname) ? url.pathname : 'other';
     if (url.pathname !== '/events') {
       res.on('finish', () => {
         const ms = performance.now() - started;
@@ -269,7 +272,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const customerLink = /^\/d\/([A-Za-z0-9_-]{20,80})(?:\/(details|photo|assist))?\/?$/.exec(url.pathname);
     if (customerLink) return customer.handle(req, res, url, { token: customerLink[1], action: customerLink[2], posting, form, raw, nonce, ip: clientAddress(req, { proxies: config.proxies }) });
 
-    if (url.pathname === '/portal' || url.pathname.startsWith('/portal/') || url.pathname.startsWith('/join/') || url.pathname.startsWith('/hello/') || url.pathname.startsWith('/badge/')) {
+    if (url.pathname === '/portal' || url.pathname.startsWith('/portal/') || url.pathname.startsWith('/join/') || url.pathname.startsWith('/welcome/') || url.pathname.startsWith('/hello/') || url.pathname.startsWith('/badge/')) {
       if (await portal.handle(req, res, url, { posting, form, raw, nonce, ip: clientAddress(req, { proxies: config.proxies }) })) return;
     }
 
@@ -317,7 +320,7 @@ export async function createWeb({ db, config, now = Date.now, log = createLogger
     const page = zubra.page({ nonce });
     const notice = notices.read(url);
     const ctx = {
-      req, res, url, form, raw, who, page, app, people, config, push, log, params: found?.params ?? {}, wantsJson, now,
+      req, res, url, form, raw, who, page, app, people, staff, config, push, log, params: found?.params ?? {}, wantsJson, now,
       send(title, body, { active = '', live = false, script = '' } = {}, status = 200) {
         html(res, status, page.finish(layout({ title, who, active, body, notice, business: config.business, live, script })), { 'content-security-policy': res.csp });
       },
