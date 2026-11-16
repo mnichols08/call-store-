@@ -16,6 +16,7 @@ import { createPortal } from './portal.js';
 import { createHours } from './hours.js';
 import { createOrders } from './orders.js';
 import { createDelivery } from './delivery.js';
+import { createAvatars } from './avatars.js';
 import { createMailer } from '../infra/mail.js';
 import { createVehicleSources } from '../infra/vehicle-sources.js';
 import { createAi } from '../infra/ai.js';
@@ -45,5 +46,5 @@ export function createApp({ db, now = Date.now, changed = () => {}, fetcher = gl
   const hours = createHours({ ...shared, zone });
   const orders = createOrders({ ...shared, ai, customers, log });
   const delivery = createDelivery({ ...shared, portal, calls });
-  return { ai, audit, lines, finder, details, portal, mailer, texter, hours, orders, delivery, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles, parts, customers, items: createItems(shared), calls, nudges, stats: createStats(shared) };
+  return { ai, avatars: createAvatars({ db, now }), audit, lines, finder, details, portal, mailer, texter, hours, orders, delivery, watch: createWatch({ ...shared, nudges, parts, calls }), vehicles, parts, customers, items: createItems(shared), calls, nudges, stats: createStats(shared) };
 }

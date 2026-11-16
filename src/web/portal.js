@@ -1,7 +1,7 @@
 // The customer portal: public pages, before any staff sign-in. Customers join through an invite
 // (a QR code or an emailed link), confirm their email, and from then on sign in with a one-time link.
 import { esc, ago } from './html.js';
-import { layout } from './ui.js';
+import { layout, avatarHtml, avatarEditor } from './ui.js';
 import { partHelper } from './pages/details.js';
 import { qrSvg } from '../infra/qr.js';
 import { createLimiter } from './limiter.js';
@@ -33,6 +33,10 @@ const SAYS = {
   'password': 'Use a password of at least 10 characters.',
   'email-taken': 'That email already has an account. Sign in instead.',
   'sign-in': 'That username and password don’t match.',
+  'name': 'Please add your name.',
+  'phone': 'That phone number doesn’t look right.',
+  'picture': 'That didn’t look like a photo. Choose a JPEG or PNG.',
+  'picture-size': 'That photo is too big. Try another one.',
   'passkey': 'That passkey didn’t work. Try again, or use a username and password.',
 };
 const GOOD = { sent: 'Thank you. We’ve got it.', saved: 'Saved.', mailed: 'Done. If that address can be used, a link is on its way.', invited: 'Invite sent.', removed: 'Removed.', note: 'Note added.' };
@@ -42,7 +46,7 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
   const sends = createLimiter({ max: 10, windowMs: 10 * 60_000, now }); // anything that sends an email, per address
   const uploads = createLimiter({ max: 20, windowMs: 60_000, now });
   const bad = createLimiter({ max: 20, windowMs: 5 * 60_000, now });
-  const nav = '<nav aria-label="Main"><a href="/portal">Requests</a><a href="/portal/requests/new">New request</a><a href="/portal/team">Team</a><a href="/portal/code">My code</a></nav>';
+  const nav = '<nav aria-label="Main"><a href="/portal">Requests</a><a href="/portal/requests/new">New request</a><a href="/portal/team">Team</a><a href="/portal/code">My code</a><a href="/portal/account">Account</a></nav>';
 
   /** Emailed links must point at our own address, never at whatever Host header arrived. */
   function origin(req) {
@@ -59,7 +63,7 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
   function page(res, nonce, status, title, body, { acct = null, script = '', cookie = null } = {}) {
     const p = zubra.page({ nonce });
     const bar = acct
-      ? { navHtml: nav, accountHtml: `<div class="account"><span class="who"><span>${esc(acct.name)}</span><small>${esc(acct.business)}</small></span><form method="post" action="/portal/sign-out"><button class="link" type="submit">Sign out</button></form><button type="button" class="icon-btn theme-toggle" aria-label="Switch theme">🌙</button></div>`, home: '/portal' }
+      ? { navHtml: nav, accountHtml: `<div class="account"><a class="me-pic" href="/portal/account" title="Your account">${avatarHtml(acct, app.avatars.version(`portal:${acct.id}`) ? `/portal/avatar?v=${app.avatars.version(`portal:${acct.id}`)}` : '')}</a><span class="who"><span>${esc(acct.name)}</span><small>${esc(acct.business)}</small></span><form method="post" action="/portal/sign-out"><button class="link" type="submit">Sign out</button></form><button type="button" class="icon-btn theme-toggle" aria-label="Switch theme">🌙</button></div>`, home: '/portal' }
       : { navHtml: '', accountHtml: '<div class="account"><button type="button" class="icon-btn theme-toggle" aria-label="Switch theme">🌙</button></div>', home: '/portal' };
     res.writeHead(status, headers(res, cookie ? { 'set-cookie': cookie } : {}));
     res.end(p.finish(layout({ title, who: null, body, business: config.business, script, customer: true, ...bar })));
@@ -158,7 +162,7 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
       const hello = /^\/hello\/([A-Za-z0-9_-]{20,80})$/.exec(p);
       const badge = /^\/badge\/([A-Za-z0-9_-]{20,80})$/.exec(p);
       const welcome = /^\/welcome\/([A-Za-z0-9_-]{20,80})(?:\/(passkey-options|passkey))?$/.exec(p);
-      const known = welcome || hello || badge || ['/portal/login/password', '/portal/passkey-options', '/portal/passkey'].includes(p) || p === '/portal/code' || m || verify || rq || removal || ['/portal', '/portal/login', '/portal/sign-out', '/portal/requests', '/portal/requests/new', '/portal/team', '/portal/team/invite'].includes(p);
+      const known = welcome || hello || badge || ['/portal/login/password', '/portal/passkey-options', '/portal/passkey'].includes(p) || p === '/portal/code' || m || verify || rq || removal || ['/portal', '/portal/login', '/portal/sign-out', '/portal/requests', '/portal/requests/new', '/portal/team', '/portal/team/invite', '/portal/account', '/portal/account/avatar', '/portal/account/avatar/remove', '/portal/avatar'].includes(p);
       if (!known) return false;
       if (!any.take(ip)) { json(res, 429, { error: 'slow-down' }); return true; }
       const q = url.searchParams;
@@ -337,6 +341,40 @@ export function createPortalPages({ app, config, zubra, now, repName = (e) => e 
         const r = app.portal.createRequest(acct, { request: f('request'), partNumbers: f('partNumbers'), quantity: f('quantity'), needed: f('needed'), fulfilment: f('fulfilment'), deliveryTown: f('deliveryTown'), deliveryAddress: f('deliveryAddress'), deliveryNote: f('deliveryNote'), service: f('service'), year: f('year'), make: f('make'), model: f('model'), engine: f('engine'), vin: f('vin') });
         if (r.error) return fail(res, '/portal/requests/new', r), true;
         go(res, `/portal/requests/${r.id}?ok=sent${r.service ? `&type=${r.service}` : ''}`);
+        return true;
+      }
+      if (p === '/portal/avatar' && !posting) {
+        const pic = app.avatars.get(`portal:${acct.id}`);
+        if (!pic) { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('No picture'); return true; }
+        res.writeHead(200, { 'content-type': pic.mime, 'content-length': pic.bytes.length, 'cache-control': 'private, max-age=31536000, immutable', 'x-content-type-options': 'nosniff' });
+        res.end(pic.bytes);
+        return true;
+      }
+      if (p === '/portal/account' && !posting) {
+        const v = app.avatars.version(`portal:${acct.id}`);
+        return page(res, nonce, 200, 'Account', `<div class="head"><h1>Your account</h1></div>${flash(q)}
+          <form method="post" action="/portal/account" class="panel stack"><h2>Your details</h2><p class="muted">You order for ${esc(acct.business)}.</p>
+            <label>Your name<input name="name" maxlength="80" required autocomplete="name" value="${esc(acct.name)}"></label>
+            <label>Email <span class="hint">Optional. We send updates here if you want them.</span><input name="email" type="email" maxlength="120" autocomplete="email" value="${esc(acct.email ?? '')}"></label>
+            <label>Cell phone <span class="hint">Optional. So the counter can reach you about an order.</span><input name="phone" type="tel" maxlength="30" autocomplete="tel" value="${esc(acct.phone ?? '')}"></label>
+            <button class="btn primary">Save</button></form>
+          ${avatarEditor({ who: acct, src: v ? `/portal/avatar?v=${v}` : '', action: '/portal/account/avatar', removeAction: '/portal/account/avatar/remove' })}`, { acct, script: '<script src="/assets/account.js" defer></script>' }), true;
+      }
+      if (p === '/portal/account' && posting) {
+        const r = app.portal.updateAccount(acct, { name: form.get('name'), email: form.get('email'), phone: form.get('phone') });
+        if (r.error) return fail(res, '/portal/account', r), true;
+        go(res, '/portal/account?ok=saved');
+        return true;
+      }
+      if (p === '/portal/account/avatar' && posting) {
+        const r = app.avatars.set(`portal:${acct.id}`, form.get('picture'));
+        if (r.error) return fail(res, '/portal/account', r), true;
+        go(res, '/portal/account?ok=saved');
+        return true;
+      }
+      if (p === '/portal/account/avatar/remove' && posting) {
+        app.avatars.remove(`portal:${acct.id}`);
+        go(res, '/portal/account?ok=saved');
         return true;
       }
       if (p === '/portal/team' && !posting) return page(res, nonce, 200, 'Team', teamPage(acct, q, req), { acct }), true;

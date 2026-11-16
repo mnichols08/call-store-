@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased: your account and your picture
+- **Staff**: click your name at the bottom of the menu for Your account. Change your name and cell phone, and choose a photo or keep your initials. The sign-in email is shown but can't be changed there, because calls are filed under it.
+- **Customers**: a new Account page in the portal for their name, email, cell phone and picture.
+- Photos are cropped and shrunk in the browser, checked again on the server (JPEG, PNG or WebP only), and stored in the database (migration 016).
+
 ## Unreleased: system check, phone codes, quick sign-up
 - **System check** (owner only, under Manage): shows whether the AI, email, texts, site address and backups are on, and a "Test the AI" button that reports the service's own error (wrong key, wrong model, no credit).
 - Settings forgive stray quotes and capital letters (`MAIL_PROVIDER="RESEND"` now works).
